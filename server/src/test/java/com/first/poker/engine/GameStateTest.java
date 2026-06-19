@@ -7,7 +7,7 @@ import java.util.List;
 class GameStateTest {
 
     private GamePlayerState player(String id, int chips) {
-        return new GamePlayerState(id, id, 0, chips, 0, false, false, List.of());
+        return new GamePlayerState(id, id, 0, chips, 0, 0, false, false, List.of());
     }
 
     @Test

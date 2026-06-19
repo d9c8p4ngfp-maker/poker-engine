@@ -17,7 +17,7 @@ class ActionValidatorTest {
     private GameState state(GamePhase phase, List<GamePlayerState> players, int currentBet) {
         var deck = new Deck();
         return new GameState(phase, players, List.of(), 100, currentBet,
-            20, 0, 0, 10, 20, deck);
+            20, 0, 0, 10, 20, deck, 0, -1);
     }
 
     @Test

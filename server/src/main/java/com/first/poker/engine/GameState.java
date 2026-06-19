@@ -13,7 +13,9 @@ public record GameState(
     int dealerIndex,
     int smallBlindAmount,
     int bigBlindAmount,
-    Deck deck
+    Deck deck,
+    int actedMask,
+    int lastAggressorIndex
 ) {
     public static GameState create(
             List<GamePlayerState> players,
@@ -32,7 +34,9 @@ public record GameState(
             dealerIndex,
             smallBlind,
             bigBlind,
-            deck
+            deck,
+            0,
+            -1
         );
     }
 
@@ -42,13 +46,57 @@ public record GameState(
 
     public GameState withPot(int newPot) {
         return new GameState(phase, players, communityCards, newPot, currentBet, minRaise,
-            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck);
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withCurrentBet(int bet) {
+        return new GameState(phase, players, communityCards, pot, bet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withActedMask(int mask) {
+        return new GameState(phase, players, communityCards, pot, currentBet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            mask, lastAggressorIndex);
+    }
+
+    public GameState withLastAggressorIndex(int idx) {
+        return new GameState(phase, players, communityCards, pot, currentBet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, idx);
     }
 
     public GameState withNextPlayer() {
         int next = nextActiveIndex(currentPlayerIndex);
         return new GameState(phase, players, communityCards, pot, currentBet, minRaise,
-            next, dealerIndex, smallBlindAmount, bigBlindAmount, deck);
+            next, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withPlayers(List<GamePlayerState> newPlayers) {
+        return new GameState(phase, newPlayers, communityCards, pot, currentBet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withPhase(GamePhase newPhase) {
+        return new GameState(newPhase, players, communityCards, pot, currentBet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withCommunityCards(List<Card> cards) {
+        return new GameState(phase, players, cards, pot, currentBet, minRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
+    public GameState withUpdatedPlayer(int index, GamePlayerState updated) {
+        var mutable = new java.util.ArrayList<>(players);
+        mutable.set(index, updated);
+        return withPlayers(List.copyOf(mutable));
     }
 
     private int nextActiveIndex(int from) {
@@ -57,7 +105,7 @@ public record GameState(
             int idx = (from + i) % size;
             if (isActive(players.get(idx))) return idx;
         }
-        return from; // fallback: stay put if no one active
+        return from;
     }
 
     private boolean isActive(GamePlayerState p) {

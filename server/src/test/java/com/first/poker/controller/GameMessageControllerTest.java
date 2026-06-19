@@ -42,7 +42,7 @@ class GameMessageControllerTest {
         controller.startGame("R1", req);
 
         verify(gameSession).startGame(room, "A");
-        verify(broadcast, atLeastOnce()).sendToRoom(eq("R1"), eq("game"), any());
+        verify(helper, atLeastOnce()).broadcastGameState(eq("R1"), any());
         verify(disconnect, atLeastOnce()).registerPlayer(eq("R1"), any());
         // scheduleTimeout is called by processAction after autoPlayBots,
         // not directly by startGame

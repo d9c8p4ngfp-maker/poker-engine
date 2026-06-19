@@ -54,18 +54,22 @@
 
 **位置**: `GameMessageController:288-308`（`syncRoomChips` 方法体）、`RoomController:176-195`（`syncChips` 重复逻辑）
 
-**调用路径**:
+**调用路径**（共 2 条，文档前版只分析了 1 条）:
 
 ```
-processAction (GameMessageController:67-92)
+路径 1 — processAction (GameMessageController:67-92):
   → gameSession.applyAction(...)      // 获取 per-room lock，修改 GameState
   → 释放 lock
   → if handComplete:
-      syncRoomChips(roomId, ...)      // ← 无锁！先同步 Player 字段
-      gameSession.endGame(...)        // ← 再次获取 lock，移除 session
+      syncRoomChips(roomId, ...)      // ← 无锁！
+      gameSession.endGame(...)        // ← 再次获取 lock
 
-注意：实际顺序是 syncRoomChips → endGame，不是 endGame → syncRoomChips。
-syncRoomChips 在锁外执行，endGame 再次获取锁（ReentrantLock 可重入）。
+路径 2 — autoPlayBots (GameMessageController:228-274):
+  → gameSession.applyAction(bot, ...)  // 获取 lock
+  → 释放 lock（applyAction 的 try-finally）
+  → if handComplete:
+      syncRoomChips(roomId, ...)      // ← 无锁！
+      gameSession.endGame(...)        // ← 再次获取 lock
 ```
 
 **竞态场景**:
@@ -94,6 +98,8 @@ pA.status 可能是 DISCONNECTED 或 syncRoomChips 未触及的先前值。
 **影响等级**: CRITICAL — 筹码数据可能丢失/错误，直接影响核心业务正确性。
 
 **注意**: `borrowChips` **没有检查房间状态**（见 `RoomController:113-130`），在任何状态下都可以调用。不存在"borrow 只有 WAITING 可用"的缓解条件，此前描述有误。
+
+**codegraph 验证**: `callers "syncRoomChips"` 确认两处调用 (`processAction:82` + `autoPlayBots`)，均锁外执行。
 
 ---
 
@@ -154,7 +160,7 @@ Thread B (玩家断连):
 
 `CopyOnWriteArrayList` 保证**列表结构**的并发安全（add/remove/iterate 不抛 ConcurrentModificationException），但**不保护 Player 对象内部字段**。
 
-**所有无锁修改 Player 字段的路径**:
+**所有无锁修改 Player 字段的路径**（codegraph `callers` 完整列表，共 11 个路径）:
 
 | 代码路径 | 文件:行号 | 修改的字段 |
 |----------|----------|-----------|
@@ -162,11 +168,14 @@ Thread B (玩家断连):
 | `syncChips` (RoomController dup) | `RoomController:176-195` | chips, betInRound, folded, allIn, holeCards |
 | `onSessionDisconnect` | `GameDisconnectHandler:70-77` | status, connected |
 | `onReconnect` | `GameDisconnectHandler:125-144` | status, connected |
-| `handleLeave` | `GameMessageController:160-161` | 列表结构 (removePlayer) |
+| `handleLeave` | `GameMessageController:158-163` | 列表结构 (removePlayer) |
 | `handleQueueAccept` | `GameMessageController:105-136` | status, chips, seatIndex |
 | `borrowChips` (REST) | `RoomController:126` | chips, borrowCount |
 | `transferOwnership` | `RoomService:91-111` | owner (Player 和 Room 都无锁) |
 | 60s disconnect 定时器 | `GameDisconnectHandler:101-116` | 列表结构 (removePlayer) |
+| `createRoom` (owner 入座) | `RoomService:30` | 通过 `addPlayer` 写入玩家列表 |
+| `addBots` (批量加入) | `RoomService:63` | 通过 `addPlayer` 写入玩家列表 |
+| `GameActionController.joinRoom` | `GameActionController:26` | 通过 `joinRoom` → `addPlayer` 写入 |
 
 **注意**: `RoomController` 存在 `autoBots` 的同步逻辑，也存在 `syncChips`/`checkGameOver`/`broadcastGameOver` 的完整重复（`RoomController:132-253`），与 `GameMessageController` 的对应方法有**完全相同的竞态条件**。
 
@@ -364,7 +373,96 @@ private final ConcurrentHashMap<String, ReentrantLock> roomLocks = new Concurren
 
 ---
 
-### 3.12 已验证的安全点
+### 3.12 H-5: `handleLeave` 溶解路径中的 `endGame` 调用未纳入分析
+
+**位置**: `GameMessageController:166-174`
+
+```java
+if (wasOwner && !roomService.hasHumanPlayers(roomId)) {
+    // No human players left — dissolve room
+    gameSession.endGame(roomId);       // ← 无锁调用！
+    registry.removeRoom(roomId);
+    return;
+}
+```
+
+**竞态场景**: owner leave → 无人类玩家 → 直接 `endGame` + `removeRoom`。如果此时另一个线程在 `syncRoomChips` 中遍历 `room.players`，`removeRoom` 会导致 `room` 对象从 registry 中消失，但 `syncRoomChips` 仍持有旧引用。
+
+**影响等级**: HIGH — `endGame` 获取 per-room lock（可重入），但 `removeRoom` 在锁外，与 `syncRoomChips`/borrow/其他操作的 room 引用可能交错。
+
+**codegraph 验证**: `impact "endGame"` 显示 43 个符号受影响，包括此路径。此前文档只分析了 `processAction` 中的 `endGame`。
+
+---
+
+### 3.13 MED-5: `endGame` 影响范围分析不完整
+
+**位置**: `RoomDissolutionScheduler:23`（`dissolveInactiveRooms`）
+
+```java
+gameSession.endGame(room.getRoomId());    // 获取 lock，然后 remove session
+registry.removeRoom(room.getRoomId());     // 无锁
+```
+
+**竞态**: 30 分钟定时器触发时，房间可能正在执行 `syncRoomChips`。`removeRoom` 在锁外移除 room，而 `syncRoomChips` 仍遍历 `room.players`。
+
+**影响等级**: MEDIUM — 可能性低（30 分钟超时 + 恰好 hand 结束），但存在。
+
+**codegraph 验证**: `impact "endGame"` 显示此调度器也调用 `endGame`，文档此前完全未提及此调用方。
+
+---
+
+### 3.14 L-3: `addPlayer` 调用方分析不完整
+
+**位置**: `RoomService:30`（`createRoom`）、`RoomService:63`（`addBots`）
+
+codegraph `callers "addPlayer"` 显示 10 个调用者，文档此前只分析了 `joinRoom`。另外两个重要调用方：
+
+- **`createRoom`**: owner 入座时调用 `addPlayer`。只在创建时执行一次，并发风险极低（房间刚创建）。
+- **`addBots`**: 批量 `addPlayer`。如果多个 WebSocket 连接同时请求 `addBots`，可能超出 `maxSeats`。
+
+**影响等级**: LOW — `createRoom` 创建瞬间唯一 owner，并发概率极低。`addBots` 的 `synchronized addPlayer` 可覆盖。
+
+**codegraph 验证**: `callers "addPlayer"` 列出 10 个调用者（含 7 个测试文件），此前文档仅提及 3 个。
+
+---
+
+### 3.15 L-1: `RoomController` 代码重复 — 每个重复方法都有相同竞态
+
+**位置**: `RoomController:132-253`（`autoBots`、`syncChips`、`checkGameOver`、`broadcastGameOver`、`broadcastBustChoice`）
+
+codegraph 确认 `RoomController` 存在 **5 个完全重复的方法**，与 `GameMessageController` 中的对应方法一一对应：
+
+| RoomController | GameMessageController |
+|----------------|----------------------|
+| `autoBots` | `autoPlayBots` |
+| `syncChips` | `syncRoomChips` |
+| `checkGameOver` | `checkGameOver` |
+| `broadcastGameOver` | `broadcastGameOver` |
+| `broadcastBustChoice` | `broadcastBustChoice` |
+
+**严重性**: 原评为 LOW，但 codegraph 揭示每个重复方法都有独立的竞态条件（全部在 per-room lock 外操作）。实际影响为 **MEDIUM** — 5 组重复代码 = 5 个独立的竞态入口。
+
+**建议**: 修复时不应两处都修，应**消除重复代码**，`RoomController` 的 REST 路径委托到 `GameMessageController` 的共用方法，或提取为共享 service。
+
+---
+
+### 3.16 L-2: `handleLeave` 的 `hasActiveSession` → `applyAction` TOCTOU
+
+**位置**: `GameMessageController:147-153`
+
+```java
+if (gameSession.hasActiveSession(roomId)) {
+    gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
+}
+```
+
+`hasActiveSession` 和 `applyAction` 之间存在时间窗口：session 可能在这两个调用之间被 `endGame` 移除。但 `applyAction` 内部获取 per-room lock 时会再次检查 session，因此**功能正确**，只是时序不洁净。
+
+**影响等级**: LOW — 不影响正确性，`applyAction` 内部抛出的异常已被 try-catch 吞掉。
+
+---
+
+### 3.17 已验证的安全点
 
 **`GameState` 不可变性**：`GameState.java` 是 Java `record`（`GameState:5`），构造时使用 `List.copyOf()`（`GameState:28`），`withPlayers` 也用 `List.copyOf()`（`GameState:99`）。`GameState.getState()` 返回的引用在多线程下安全。
 
@@ -372,7 +470,7 @@ private final ConcurrentHashMap<String, ReentrantLock> roomLocks = new Concurren
 
 ---
 
-### 3.13 测试覆盖说明
+### 3.18 测试覆盖说明
 
 当前 160 个单元测试**均为单线程测试**，不覆盖并发场景。并发问题无法通过普通单元测试发现，需要使用 `CountDownLatch`、`CyclicBarrier` 或压力测试工具验证。回归测试只能确保**现有单线程逻辑不受修复影响**，不能替代并发正确性验证。
 
@@ -557,8 +655,9 @@ public synchronized boolean addPlayer(Player player) {
 | 第一轮（AI 审查） | P1 addPlayer TOCTOU, P2 syncRoomChips 锁外, P3 disconnect 定时器竞态, P4 volatile 缺失 | 初始发现 |
 | 第二轮（用户审查） | CRITICAL-1 autoPlayBots 竞态, CRITICAL-2 disconnect 无锁, CRITICAL-3 leave TOCTOU, H-1 Player 字段无原子性, H-2 queueAccept 无锁, H-3 单线程超时, MED-1 roomLocks 泄漏, MED-2 session 映射丢失 | 新增 5 个问题，深化 4 个问题 |
 | 第三轮（用户代码验证） | 行号错误 ×3、调用顺序描述有误、"现有缓解"不成立(borrow无状态检查)、遗漏 RoomController.autoBots 相同竞态、遗漏 transferOwnership 无锁、GameState/BroadcastService 未验证、修复方案 4 个缺陷、CRITICAL-4 降级理由偏弱、MED-2 fallback 可靠性存疑、缺少测试覆盖声明 | 修正 4 处、补充 6 处、新增 2 个安全检查项 |
+| 第四轮（codegraph 交叉验证） | 遗漏 syncRoomChips 第二调用路径(autoPlayBots)、遗漏 handleLeave 溶解路径 endGame、遗漏 RoomDissolutionScheduler endGame、遗漏 addPlayer 调用方(createRoom/addBots)、遗漏 GameActionController.joinRoom、代码重复严重性偏低 | 新增 3 个问题(H-5, MED-5, L-3)、修正 L-1 严重性(LOW→MEDIUM)、补充 CRITICAL-1/CRITICAL-3 表格 |
 
-**三轮审查去重后共 13 个问题**: 3 CRITICAL, 4 HIGH, 4 MEDIUM, 2 LOW。
+**四轮审查去重后共 16 个问题**: 3 CRITICAL, 5 HIGH, 5 MEDIUM, 3 LOW。
 
 ---
 
@@ -568,7 +667,7 @@ public synchronized boolean addPlayer(Player player) {
 |----|------|------|
 | CRITICAL-1 | CRITICAL | `syncRoomChips` 完全在锁外 |
 | CRITICAL-2 | CRITICAL | `onSessionDisconnect` 全面无锁 |
-| CRITICAL-3 | CRITICAL | `Player` 字段无原子性（无锁修改路径表包含 9 条路径） |
+| CRITICAL-3 | CRITICAL | `Player` 字段无原子性（无锁修改路径表包含 12 条路径） |
 | H-1 | HIGH | `autoPlayBots` / `autoBots` 锁外读（两处相同问题） |
 | H-2 | HIGH | `addPlayer` 容量 TOCTOU + `joinRoom` seatIndex 分配不安全 |
 | H-3 | HIGH | `handleQueueAccept` 座位分配无锁 |
@@ -577,8 +676,11 @@ public synchronized boolean addPlayer(Player player) {
 | MED-2 | MEDIUM | `roomLocks` 永不清理 |
 | MED-3 | MEDIUM | `sessionToPlayer` 仅 startGame 注册 + fallback 不完全可靠 |
 | MED-4 | MEDIUM | 4 个字段缺少 `volatile` + volatile 与锁关系需澄清 |
-| L-1 | LOW | `RoomController` 存在完整的逻辑重复（7 个方法与 GameMessageController 重复） |
+| H-5 | HIGH | `handleLeave` 溶解路径中的 `endGame` 调用（与 syncRoomChips 的 room 引用交错） |
+| MED-5 | MEDIUM | `endGame` 影响范围分析不完整 — `RoomDissolutionScheduler` 也调用 `endGame` |
+| L-1 | MEDIUM | `RoomController` 存在 5 个完整重复方法 — 每个都有相同的竞态入口（codegraph 验证） |
 | L-2 | LOW | `handleLeave` 的 `hasActiveSession` → `applyAction` TOCTOU（功能正确但时序不洁） |
+| L-3 | LOW | `addPlayer` 调用方分析不完整（遗漏 `createRoom` 和 `addBots` 路径） |
 
 ---
 

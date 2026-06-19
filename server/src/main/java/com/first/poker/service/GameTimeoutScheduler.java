@@ -20,9 +20,9 @@ public class GameTimeoutScheduler {
     }
 
     public void scheduleTimeout(String roomId, String playerId, int timeoutSec) {
+        // Cancel any existing timeout for this room before scheduling a new one
+        cancelTimeout(roomId);
         String key = roomId + ":" + playerId;
-        // Cancel previous
-        cancelTimeoutKey(key);
         var future = executor.schedule(() -> {
             tasks.remove(key);
             timeoutCallback.accept(roomId, playerId);

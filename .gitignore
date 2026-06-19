@@ -1,0 +1,28 @@
+# Java
+server/target/
+server/.mvn/wrapper/maven-wrapper.jar
+server/*.jar
+*.class
+*.log
+*.iml
+.idea/
+.settings/
+.project
+.classpath
+
+# Node
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Env
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.swp
+*.swo

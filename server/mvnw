@@ -1,0 +1,29 @@
+#!/bin/sh
+# Apache Maven Wrapper startup script
+# This script downloads Maven if not found and runs the build
+
+set -e
+
+# Determine project base directory
+PRG="$0"
+while [ -h "$PRG" ]; do
+  ls=$(ls -ld "$(dirname "$PRG")")
+  link=$(expr "$ls" : '.*-> \(.*\)$')
+  if expr "$link" : '/.*' > /dev/null; then
+    PRG="$link"
+  else
+    PRG="$(dirname "$PRG")/$link"
+  fi
+done
+SAVED="$(pwd)"
+cd "$(dirname "$PRG")/.." >/dev/null
+MAVEN_PROJECTBASEDIR="$(pwd)"
+cd "$SAVED" >/dev/null
+
+# Check for mvn in PATH
+if command -v mvn > /dev/null 2>&1; then
+  exec mvn "$@"
+fi
+
+echo "Maven not found. Please install Maven or use your IDE to build."
+exit 1

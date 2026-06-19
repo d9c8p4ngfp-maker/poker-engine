@@ -32,11 +32,12 @@ public class Room {
         this.owner = null;
     }
 
-    public boolean addPlayer(Player player) {
+    public synchronized boolean addPlayer(Player player) {
         if (players.size() >= config.getMaxSeats()) return false;
         if (players.stream().anyMatch(p -> p.getPlayerId().equals(player.getPlayerId()))) {
             return false;
         }
+        player.setSeatIndex(players.size());
         players.add(player);
         return true;
     }

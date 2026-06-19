@@ -29,7 +29,7 @@ public class RoomService {
         // Auto-add owner as first player
         if (req.getOwnerId() != null) {
             String nickname = req.getOwnerNickname() != null ? req.getOwnerNickname() : req.getOwnerId();
-            Player owner = new Player(req.getOwnerId(), nickname, 0, config.getInitialChips());
+            Player owner = new Player(req.getOwnerId(), nickname, -1, config.getInitialChips());
             owner.setOwner(true);
             room.addPlayer(owner);
             room.setOwner(owner);
@@ -54,7 +54,7 @@ public class RoomService {
 
         // WAITING: add as ACTIVE
         Player player = new Player(req.getPlayerId(), req.getNickname(),
-                room.getPlayers().size(), room.getConfig().getInitialChips());
+                -1, room.getConfig().getInitialChips());
         player.setStatus(com.first.poker.model.enums.PlayerStatus.ACTIVE);
         if (!room.addPlayer(player)) return null;
         return room;
@@ -74,7 +74,7 @@ public class RoomService {
             int botNum = existingBots + i + 1;
             String botId = "bot-" + roomId + "-" + botNum;
             String name = botNum <= botNames.length ? botNames[botNum - 1] : ("🤖机器人" + botNum);
-            Player bot = new Player(botId, name, room.getPlayers().size(), room.getConfig().getInitialChips());
+            Player bot = new Player(botId, name, -1, room.getConfig().getInitialChips());
             if (room.addPlayer(bot)) {
                 bots.add(bot);
             }

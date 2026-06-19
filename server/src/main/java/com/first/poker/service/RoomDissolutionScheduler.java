@@ -26,13 +26,16 @@ public class RoomDissolutionScheduler {
 
         for (var room : registry.listPublicRooms()) {
             if (room.getLastActivity() + thirtyMinutes < now) {
-                System.out.println("[DISSOLVE-INACTIVE] " + room.getRoomId() + " inactive for 30+ minutes");
-                var payload = new HashMap<String, Object>();
-                payload.put("type", "room_dissolved");
-                payload.put("roomId", room.getRoomId());
-                broadcast.sendToRoom(room.getRoomId(), payload);
-                gameSession.endGame(room.getRoomId());
-                registry.removeRoom(room.getRoomId());
+                String roomId = room.getRoomId();
+                System.out.println("[DISSOLVE-INACTIVE] " + roomId + " inactive for 30+ minutes");
+                gameSession.executeWithLock(roomId, () -> {
+                    gameSession.endGame(roomId);
+                    registry.removeRoom(roomId);
+                    var payload = new HashMap<String, Object>();
+                    payload.put("type", "room_dissolved");
+                    payload.put("roomId", roomId);
+                    broadcast.sendToRoom(roomId, payload);
+                });
             }
         }
     }

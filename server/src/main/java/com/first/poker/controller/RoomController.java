@@ -112,21 +112,39 @@ public class RoomController {
 
     @PostMapping("/{roomId}/borrow")
     public ResponseEntity<?> borrowChips(@PathVariable String roomId, @RequestBody Map<String, Object> body) {
-        var room = roomService.findRoom(roomId);
-        if (room == null) return ResponseEntity.notFound().build();
         String playerId = (String) body.get("playerId");
         if (playerId == null || playerId.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "missing playerId"));
-        var player = room.getPlayers().stream().filter(p -> p.getPlayerId().equals(playerId)).findFirst().orElse(null);
-        if (player == null) return ResponseEntity.badRequest().body(Map.of("error", "player not found"));
 
-        int borrowAmount = room.getConfig().getInitialChips();
+        final int[] borrowAmount = {0};
+        // Read config first (read-only, safe outside lock)
+        var roomForConfig = roomService.findRoom(roomId);
+        if (roomForConfig == null) return ResponseEntity.notFound().build();
+        borrowAmount[0] = roomForConfig.getConfig().getInitialChips();
         if (body.containsKey("amount")) {
-            borrowAmount = ((Number) body.get("amount")).intValue();
+            borrowAmount[0] = ((Number) body.get("amount")).intValue();
         }
-        player.borrow(borrowAmount);
-        System.out.println("[BORROW] " + roomId + " " + playerId + " borrowed #" + player.getBorrowCount() + " amount=" + borrowAmount + ", chips=" + player.getChips());
+
+        gameSessionService.executeWithLock(roomId, () -> {
+            var room = roomService.findRoom(roomId);
+            if (room == null) return;
+            var player = room.getPlayers().stream()
+                .filter(p -> p.getPlayerId().equals(playerId))
+                .findFirst().orElse(null);
+            if (player == null) return;
+            player.borrow(borrowAmount[0]);
+            System.out.println("[BORROW] " + roomId + " " + playerId
+                + " borrowed #" + player.getBorrowCount()
+                + " amount=" + borrowAmount[0] + ", chips=" + player.getChips());
+        });
+
+        // Broadcast outside lock (broadcast is thread-safe)
+        var room = roomService.findRoom(roomId);
+        if (room == null) return ResponseEntity.notFound().build();
         broadcastService.sendToRoom(roomId, "room", roomToResponse(room));
-        return ResponseEntity.ok(Map.of("playerId", playerId, "chips", player.getChips(), "borrowCount", player.getBorrowCount()));
+        var p = room.getPlayers().stream().filter(pl -> pl.getPlayerId().equals(playerId)).findFirst().orElse(null);
+        return ResponseEntity.ok(Map.of("playerId", playerId,
+            "chips", p != null ? p.getChips() : 0,
+            "borrowCount", p != null ? p.getBorrowCount() : 0));
     }
 
     private void autoBots(String roomId) {

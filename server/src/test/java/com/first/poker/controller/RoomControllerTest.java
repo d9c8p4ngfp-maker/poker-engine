@@ -54,6 +54,36 @@ class RoomControllerTest {
     }
 
     @Test
+    void shouldBorrowChips() throws Exception {
+        // Create a room first
+        String createBody = "{\"name\":\"borrow-test\",\"initialChips\":1000}";
+        var createRes = mockMvc.perform(post("/api/rooms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createBody))
+                .andExpect(status().isOk())
+                .andReturn();
+        String roomId = com.jayway.jsonpath.JsonPath
+                .read(createRes.getResponse().getContentAsString(), "$.roomId");
+
+        // Join the room
+        String joinBody = "{\"playerId\":\"p1\",\"nickname\":\"Borrower\"}";
+        mockMvc.perform(post("/api/rooms/" + roomId + "/join")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(joinBody))
+                .andExpect(status().isOk());
+
+        // Borrow chips — ensures executeWithLock wrapping doesn't break functionality
+        String borrowBody = "{\"playerId\":\"p1\"}";
+        mockMvc.perform(post("/api/rooms/" + roomId + "/borrow")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(borrowBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.playerId").value("p1"))
+                .andExpect(jsonPath("$.chips").isNumber())
+                .andExpect(jsonPath("$.borrowCount").value(1));
+    }
+
+    @Test
     void shouldReturn404ForNonExistentRoom() throws Exception {
         mockMvc.perform(post("/api/rooms/NOEXIST/join")
                 .contentType(MediaType.APPLICATION_JSON)

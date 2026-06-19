@@ -5,9 +5,7 @@ import com.first.poker.engine.*;
 import com.first.poker.model.Player;
 import com.first.poker.model.Room;
 import com.first.poker.model.RoomConfig;
-import com.first.poker.service.BroadcastService;
-import com.first.poker.service.GameSessionService;
-import com.first.poker.service.RoomService;
+import com.first.poker.service.*;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -20,7 +18,9 @@ class GameMessageControllerTest {
         var roomService = mock(RoomService.class);
         var gameSession = mock(GameSessionService.class);
         var broadcast = mock(BroadcastService.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast);
+        var timeout = mock(GameTimeoutScheduler.class);
+        var disconnect = mock(GameDisconnectHandler.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));
@@ -41,6 +41,8 @@ class GameMessageControllerTest {
 
         verify(gameSession).startGame(room, "A");
         verify(broadcast, atLeastOnce()).sendToRoom(eq("R1"), eq("game"), any());
+        verify(disconnect, atLeastOnce()).registerPlayer(eq("R1"), any());
+        verify(timeout).scheduleTimeout(eq("R1"), any(), eq(30));
     }
 
     @Test
@@ -48,7 +50,9 @@ class GameMessageControllerTest {
         var roomService = mock(RoomService.class);
         var gameSession = mock(GameSessionService.class);
         var broadcast = mock(BroadcastService.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast);
+        var timeout = mock(GameTimeoutScheduler.class);
+        var disconnect = mock(GameDisconnectHandler.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));

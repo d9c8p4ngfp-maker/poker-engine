@@ -2,9 +2,12 @@ package com.first.poker.controller;
 
 import com.first.poker.dto.GameActionRequest;
 import com.first.poker.engine.GameAction;
+import com.first.poker.engine.GameEngine;
 import com.first.poker.engine.GameStateSnapshot;
 import com.first.poker.service.BroadcastService;
+import com.first.poker.service.GameDisconnectHandler;
 import com.first.poker.service.GameSessionService;
+import com.first.poker.service.GameTimeoutScheduler;
 import com.first.poker.service.RoomService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -17,12 +20,17 @@ public class GameMessageController {
     private final RoomService roomService;
     private final GameSessionService gameSession;
     private final BroadcastService broadcast;
+    private final GameTimeoutScheduler timeoutScheduler;
+    private final GameDisconnectHandler disconnectHandler;
 
     public GameMessageController(RoomService roomService, GameSessionService gameSession,
-                                  BroadcastService broadcast) {
+                                  BroadcastService broadcast, GameTimeoutScheduler timeoutScheduler,
+                                  GameDisconnectHandler disconnectHandler) {
         this.roomService = roomService;
         this.gameSession = gameSession;
         this.broadcast = broadcast;
+        this.timeoutScheduler = timeoutScheduler;
+        this.disconnectHandler = disconnectHandler;
     }
 
     @MessageMapping("/game/{roomId}/start")
@@ -32,14 +40,16 @@ public class GameMessageController {
 
         var state = gameSession.startGame(room, req.getPlayerId());
 
-        // Broadcast public snapshot to all
-        broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state));
-
-        // Send private snapshot to each player
+        // Register all players for disconnect tracking
         for (var p : state.players()) {
-            var privateSnapshot = GameStateSnapshot.buildForPlayer(state, p.playerId());
-            broadcast.sendToPlayer(p.playerId(), privateSnapshot);
+            disconnectHandler.registerPlayer(roomId, p.playerId());
         }
+
+        broadcastGameState(roomId, state);
+
+        // Schedule timeout for first player
+        var currentPlayer = state.currentPlayer();
+        timeoutScheduler.scheduleTimeout(roomId, currentPlayer.playerId(), 30);
     }
 
     @MessageMapping("/game/{roomId}/action")
@@ -49,27 +59,40 @@ public class GameMessageController {
 
         var state = result.state();
 
-        // Broadcast public snapshot
-        broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state));
+        broadcastGameState(roomId, state);
 
-        // Send private snapshots
+        // Handle hand complete
+        if (result.handComplete()) {
+            timeoutScheduler.cancelTimeout(roomId);
+            if (!result.winners().isEmpty()) {
+                broadcastWinners(roomId, result);
+            }
+            return;
+        }
+
+        // Schedule timeout for next player
+        var currentPlayer = state.currentPlayer();
+        timeoutScheduler.scheduleTimeout(roomId, currentPlayer.playerId(), 30);
+    }
+
+    private void broadcastGameState(String roomId, com.first.poker.engine.GameState state) {
+        broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state));
         for (var p : state.players()) {
             var privateSnapshot = GameStateSnapshot.buildForPlayer(state, p.playerId());
             broadcast.sendToPlayer(p.playerId(), privateSnapshot);
         }
+    }
 
-        // If hand complete, broadcast winners
-        if (result.handComplete() && !result.winners().isEmpty()) {
-            var winnerPayload = new java.util.HashMap<String, Object>();
-            var winnersList = result.winners().stream()
-                .map(w -> java.util.Map.of(
-                    "playerId", w.playerId(),
-                    "nickname", w.nickname(),
-                    "handName", w.handName(),
-                    "amount", w.amount()
-                )).toList();
-            winnerPayload.put("winners", winnersList);
-            broadcast.sendToRoom(roomId, "game", winnerPayload);
-        }
+    private void broadcastWinners(String roomId, GameEngine.ActionResult result) {
+        var winnerPayload = new java.util.HashMap<String, Object>();
+        var winnersList = result.winners().stream()
+            .map(w -> java.util.Map.of(
+                "playerId", w.playerId(),
+                "nickname", w.nickname(),
+                "handName", w.handName(),
+                "amount", w.amount()
+            )).toList();
+        winnerPayload.put("winners", winnersList);
+        broadcast.sendToRoom(roomId, "game", winnerPayload);
     }
 }

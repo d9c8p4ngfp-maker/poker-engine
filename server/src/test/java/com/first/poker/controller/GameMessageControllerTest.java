@@ -74,4 +74,31 @@ class GameMessageControllerTest {
         verify(broadcast).sendToPlayer(eq("B"), argThat(m ->
             m instanceof java.util.Map && ((java.util.Map<?,?>)m).containsKey("error")));
     }
+
+    @Test
+    void handleLeave_shouldUseExecuteWithLock() {
+        var roomService = mock(RoomService.class);
+        var gameSession = mock(GameSessionService.class);
+        var broadcast = mock(BroadcastService.class);
+        var timeout = mock(GameTimeoutScheduler.class);
+        var disconnect = mock(GameDisconnectHandler.class);
+        var registry = mock(RoomRegistry.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
+
+        // Make executeWithLock actually run the task synchronously (as in production)
+        doAnswer(invocation -> {
+            Runnable task = invocation.getArgument(1);
+            task.run();
+            return null;
+        }).when(gameSession).executeWithLock(anyString(), any(Runnable.class));
+
+        var room = new Room("RL", "test", RoomConfig.withDefaults());
+        room.addPlayer(new Player("A", "Alice", 0, 1000));
+        when(roomService.findRoom("RL")).thenReturn(room);
+
+        controller.handleLeave("RL", java.util.Map.of("playerId", "A"));
+
+        // Verify room operations were called inside the lock
+        verify(roomService).leaveRoom(eq("RL"), eq("A"));
+    }
 }

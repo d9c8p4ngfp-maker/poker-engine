@@ -20,15 +20,4 @@ public class GameConfiguration {
             }
         });
     }
-
-    @Bean
-    public GameDisconnectHandler gameDisconnectHandler(GameSessionService gameSession) {
-        return new GameDisconnectHandler((roomId, playerId) -> {
-            try {
-                gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
-            } catch (Exception ignored) {
-                // Disconnect fold may fail if game is already over
-            }
-        });
-    }
 }

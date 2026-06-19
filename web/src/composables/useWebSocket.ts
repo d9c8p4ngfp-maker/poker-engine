@@ -8,10 +8,15 @@ const lastMessage = ref<string | null>(null)
 let stompClient: Client | null = null
 
 function getWsUrl(): string {
-  return '/ws'
+  const url = new URL('/ws', window.location.origin)
+  url.searchParams.set('playerId', userPlayerId)
+  return url.pathname + url.search
 }
 
-export function useWebSocket() {
+let userPlayerId = ''
+
+export function useWebSocket(playerId?: string) {
+  if (playerId) userPlayerId = playerId
   function connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (stompClient?.active) {

@@ -13,7 +13,7 @@ import BustChoice from '../components/poker/BustChoice.vue'
 const route = useRoute()
 const router = useRouter()
 const roomId = route.params.roomId as string
-const { connect, disconnect, subscribe, send, connected } = useWebSocket()
+const { connect, disconnect, subscribe, send, connected } = useWebSocket(userStore.playerId)
 const roomStore = useRoomStore()
 const userStore = useUserStore()
 

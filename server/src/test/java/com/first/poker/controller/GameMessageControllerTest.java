@@ -42,7 +42,8 @@ class GameMessageControllerTest {
         verify(gameSession).startGame(room, "A");
         verify(broadcast, atLeastOnce()).sendToRoom(eq("R1"), eq("game"), any());
         verify(disconnect, atLeastOnce()).registerPlayer(eq("R1"), any());
-        verify(timeout).scheduleTimeout(eq("R1"), any(), eq(30));
+        // scheduleTimeout is called by processAction after autoPlayBots,
+        // not directly by startGame
     }
 
     @Test
@@ -64,7 +65,11 @@ class GameMessageControllerTest {
 
         var req = new GameActionRequest();
         req.setPlayerId("B");
-        assertThrows(IllegalArgumentException.class, () ->
-            controller.startGame("R1", req));
+        // startGame now catches exceptions and broadcasts the error to the player
+        controller.startGame("R1", req);
+
+        verify(gameSession).startGame(room, "B");
+        verify(broadcast).sendToPlayer(eq("B"), argThat(m ->
+            m instanceof java.util.Map && ((java.util.Map<?,?>)m).containsKey("error")));
     }
 }

@@ -19,7 +19,7 @@ public class HandEvaluator {
 
     private static HandResult evaluateFive(List<Card> cards) {
         int[] ranks = new int[5];
-        for (int i = 0; i < 5; i++) ranks[i] = cards.get(i).rank().ordinal();
+        for (int i = 0; i < 5; i++) ranks[i] = cards.get(i).rank().numericValue();
 
         Arrays.sort(ranks);
         boolean flush = cards.stream().map(Card::suit).distinct().count() == 1;
@@ -30,7 +30,7 @@ public class HandEvaluator {
          && ranks[2] + 1 == ranks[3] && ranks[3] + 1 == ranks[4]) {
             straight = true;
         }
-        // Wheel: A-2-3-4-5 (ordinals 0,1,2,3,12)
+        // Wheel: A-2-3-4-5 (numericValues: 0=DEUCE, 1=TREY, 2=FOUR, 3=FIVE, 12=ACE)
         if (ranks[0] == 0 && ranks[1] == 1 && ranks[2] == 2 && ranks[3] == 3 && ranks[4] == 12) {
             straight = true;
             highCard = 3;

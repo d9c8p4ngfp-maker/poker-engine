@@ -17,6 +17,8 @@ public class GameStateSnapshot {
         map.put("bigBlind", state.bigBlindAmount());
         map.put("dealerIndex", state.dealerIndex());
         map.put("timeLeftSec", 30);
+        map.put("minRaise", state.minRaise());
+        boolean isShowdown = state.phase() == GamePhase.SHOWDOWN;
         map.put("players", state.players().stream().map(p -> {
             Map<String, Object> pm = new LinkedHashMap<>();
             pm.put("playerId", p.playerId());
@@ -26,7 +28,8 @@ public class GameStateSnapshot {
             pm.put("betInRound", p.roundBet());
             pm.put("folded", p.folded());
             pm.put("allIn", p.allIn());
-            pm.put("holeCards", null); // never leak in public
+            // Reveal all non-folded hole cards at showdown
+            pm.put("holeCards", isShowdown && !p.folded() ? p.holeCards().stream().map(Card::toString).toList() : null);
             pm.put("lastAction", null);
             pm.put("connected", true);
             return pm;

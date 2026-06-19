@@ -21,6 +21,6 @@ public class BroadcastService {
     }
 
     public void sendToPlayer(String playerId, Object payload) {
-        template.convertAndSendToUser(playerId, "/queue/game", payload);
+        template.convertAndSend("/topic/player/" + playerId + "/game", payload);
     }
 }

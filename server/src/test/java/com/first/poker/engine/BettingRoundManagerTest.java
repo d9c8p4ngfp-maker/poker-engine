@@ -114,4 +114,19 @@ class BettingRoundManagerTest {
         // B hasn't acted since A's raise
         assertFalse(BettingRoundManager.isRoundComplete(state, mask, lastAgg));
     }
+
+    @Test
+    void potIncreasesOnCallDuringRound() {
+        var players = List.of(
+            p("A", 1000, 20, 0),
+            p("B", 1000, 20, 20),
+            p("C", 1000, 20, 20)
+        );
+        var state = freshState(players, 20, 0).withPot(30); // blinds posted
+        int mask = (1 << 1) | (1 << 2);
+        int lastAgg = 1;
+
+        var result = BettingRoundManager.applyAction(state, GameAction.CALL, 0, mask, lastAgg);
+        assertEquals(50, result.pot(), "Pot should increase by the call amount (20)");
+    }
 }

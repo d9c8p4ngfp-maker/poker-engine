@@ -1,5 +1,6 @@
 package com.first.poker.model;
 
+import com.first.poker.model.enums.PlayerStatus;
 import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,9 @@ public class Player {
     private boolean connected;
     private String lastAction;
     private List<String> holeCards;
+    private int borrowCount;
+    private boolean owner;
+    private PlayerStatus status;
 
     public Player(String playerId, String nickname, int seatIndex, int initialChips) {
         this.playerId = playerId;
@@ -28,6 +32,14 @@ public class Player {
         this.connected = true;
         this.lastAction = null;
         this.holeCards = new ArrayList<>();
+        this.borrowCount = 0;
+        this.owner = false;
+        this.status = PlayerStatus.ACTIVE;
+    }
+
+    public void borrow(int amount) {
+        this.chips += amount;
+        this.borrowCount++;
     }
 
     public void placeBet(int amount) {

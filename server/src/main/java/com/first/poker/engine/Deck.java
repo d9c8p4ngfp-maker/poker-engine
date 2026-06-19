@@ -3,6 +3,7 @@ package com.first.poker.engine;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 public class Deck {
     private final List<Card> cards;
@@ -14,6 +15,11 @@ public class Deck {
                 cards.add(new Card(suit, rank));
             }
         }
+    }
+
+    public Deck(long seed) {
+        this();
+        Collections.shuffle(cards, new Random(seed));
     }
 
     public void shuffle() {

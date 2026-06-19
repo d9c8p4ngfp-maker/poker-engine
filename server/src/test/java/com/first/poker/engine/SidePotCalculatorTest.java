@@ -58,4 +58,10 @@ class SidePotCalculatorTest {
         assertTrue(pots.get(0).eligiblePlayerIds().contains("B"));
         assertFalse(pots.get(0).eligiblePlayerIds().contains("A"));
     }
+
+    @Test
+    void emptyStakesReturnsEmptyList() {
+        var pots = SidePotCalculator.calculate(List.of(), Map.of());
+        assertTrue(pots.isEmpty(), "Empty stakes should return empty pot list");
+    }
 }

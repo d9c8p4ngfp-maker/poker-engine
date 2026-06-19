@@ -13,6 +13,8 @@ export const useUserStore = defineStore('user', () => {
 
   function setRoomId(roomId: string | null) {
     currentRoomId.value = roomId
+    if (roomId) localStorage.setItem('poker_room_id', roomId)
+    else localStorage.removeItem('poker_room_id')
   }
 
   // Persist player ID

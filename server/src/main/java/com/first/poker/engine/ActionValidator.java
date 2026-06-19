@@ -50,24 +50,18 @@ public class ActionValidator {
             case CALL -> {
                 int chipsNeeded = state.currentBet() - player.roundBet();
                 if (chipsNeeded <= 0) throw new IllegalArgumentException("Nothing to call");
-                if (chipsNeeded > player.chips()) {
-                    throw new IllegalArgumentException("Not enough chips to call");
-                }
+                // All-in via call: capping is handled in BettingRoundManager
             }
             case BET -> {
                 if (state.currentBet() > 0) throw new IllegalArgumentException("Must raise, not bet");
-                if (amount < state.minRaise()) throw new IllegalArgumentException(
+                if (amount < state.minRaise() && amount < player.chips()) throw new IllegalArgumentException(
                     "Minimum bet is " + state.minRaise());
-                if (amount > player.chips()) throw new IllegalArgumentException(
-                    "Cannot bet more than remaining chips");
             }
             case RAISE -> {
                 if (state.currentBet() == 0) throw new IllegalArgumentException("Must bet, not raise");
                 int minTotal = state.currentBet() + state.minRaise();
-                if (amount < minTotal) throw new IllegalArgumentException(
+                if (amount < minTotal && amount < player.chips()) throw new IllegalArgumentException(
                     "Raise must be at least " + minTotal);
-                if (amount > player.chips()) throw new IllegalArgumentException(
-                    "Cannot raise more than remaining chips");
             }
         }
     }

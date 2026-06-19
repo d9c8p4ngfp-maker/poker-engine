@@ -102,4 +102,22 @@ class HandEvaluatorTest {
         var straight = cards("9h", "8d", "7s", "6c", "5h", "2d", "3c");
         assertTrue(HandEvaluator.evaluate(flush).rank() > HandEvaluator.evaluate(straight).rank());
     }
+
+    @Test
+    void wheelRanksBelowSixHighStraight() {
+        var wheel = cards("Ah", "2d", "3s", "4c", "5h", "9d", "Kc");
+        var sixHigh = cards("6h", "5d", "4s", "3c", "2h", "9d", "Kc");
+        int wheelRank = HandEvaluator.evaluate(wheel).rank();
+        int sixHighRank = HandEvaluator.evaluate(sixHigh).rank();
+        assertTrue(wheelRank < sixHighRank,
+            "Wheel (A-2-3-4-5) should rank below 6-high straight (2-3-4-5-6), got " + wheelRank + " vs " + sixHighRank);
+    }
+
+    @Test
+    void pairKickerDecides() {
+        var highKicker = cards("Ah", "As", "Kh", "Qd", "2c", "5d", "3c");
+        var lowKicker = cards("Ad", "Ac", "Jh", "Td", "2s", "5s", "3h");
+        assertTrue(HandEvaluator.evaluate(highKicker).rank() > HandEvaluator.evaluate(lowKicker).rank(),
+            "Pair of Aces with KQ kicker should beat Pair of Aces with JT kicker");
+    }
 }

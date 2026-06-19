@@ -34,11 +34,17 @@ public class PhaseTransition {
         // Preflop: first to act is UTG = left of big blind
         int utgIdx = (bbIdx + 1) % n;
 
+        // Initial pot includes blind posts (use actual amounts deducted)
+        int sbPost = config.getSmallBlind();
+        int bbPost = config.getBigBlind();
+        int initialPot = Math.min(sbPost, players.get(sbIdx).chips())
+                       + Math.min(bbPost, players.get(bbIdx).chips());
+
         return new GameState(
             GamePhase.PRE_FLOP,
             fixedPlayers,
             List.of(),
-            0,
+            initialPot,
             config.getBigBlind(),
             config.getBigBlind(),
             utgIdx,
@@ -55,16 +61,14 @@ public class PhaseTransition {
         GamePhase current = state.phase();
         int n = state.players().size();
 
-        // Collect all round bets into pot
-        int additionalPot = 0;
+        // Round bets already tracked in pot during actions; just reset them
         var mutable = new ArrayList<>(state.players());
         for (int i = 0; i < n; i++) {
             var p = mutable.get(i);
-            additionalPot += p.roundBet();
             mutable.set(i, p.withRoundBetReset());
         }
 
-        int newPot = state.pot() + additionalPot;
+        int newPot = state.pot();
         int dealerIdx = state.dealerIndex();
 
         return switch (current) {

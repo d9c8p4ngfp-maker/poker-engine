@@ -66,4 +66,11 @@ class GamePlayerStateTest {
         assertEquals(2, updated.holeCards().size());
         assertEquals("Ah", updated.holeCards().get(0).toString());
     }
+
+    @Test
+    void chipsNeverNegative() {
+        var state = new GamePlayerState("p1", "A", 0, 30, 0, 0, false, false, List.of());
+        var updated = state.withChipsDeducted(100);
+        assertEquals(0, updated.chips(), "Chips should be capped at 0, not go negative");
+    }
 }

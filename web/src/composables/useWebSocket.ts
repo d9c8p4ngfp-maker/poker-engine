@@ -8,10 +8,7 @@ const lastMessage = ref<string | null>(null)
 let stompClient: Client | null = null
 
 function getWsUrl(): string {
-  const loc = window.location
-  const protocol = loc.protocol === 'https:' ? 'https:' : 'http:'
-  const host = import.meta.env.DEV ? `${loc.hostname}:8080` : loc.host
-  return `${protocol}//${host}/ws`
+  return '/ws'
 }
 
 export function useWebSocket() {
@@ -22,23 +19,25 @@ export function useWebSocket() {
         return
       }
 
+      let resolved = false
       stompClient = new Client({
         webSocketFactory: () => new SockJS(getWsUrl()),
-        reconnectDelay: 3000,
-        heartbeatIncoming: 10000,
-        heartbeatOutgoing: 10000,
+        reconnectDelay: 2000,
+        heartbeatIncoming: 30000,
+        heartbeatOutgoing: 30000,
         onConnect: () => {
           connected.value = true
           console.log('[WS] Connected to server')
-          resolve()
+          if (!resolved) { resolved = true; resolve() }
         },
         onDisconnect: () => {
           connected.value = false
-          console.log('[WS] Disconnected from server')
+          console.log('[WS] Disconnected, reconnecting...')
+          if (!resolved) { resolved = true; reject(new Error('Disconnected')) }
         },
         onStompError: (frame) => {
           console.error('[WS] STOMP error:', frame.headers['message'])
-          reject(new Error(frame.headers['message']))
+          if (!resolved) { resolved = true; reject(new Error(frame.headers['message'])) }
         },
       })
 

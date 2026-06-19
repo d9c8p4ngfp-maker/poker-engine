@@ -14,4 +14,5 @@ public class CreateRoomRequest {
     private Integer initialChips;
     private Integer smallBlind;
     private Integer actionTimeoutSec;
+    private Boolean bustEndsGame;
 }

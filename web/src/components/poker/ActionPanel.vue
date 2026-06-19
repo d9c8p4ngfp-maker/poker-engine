@@ -18,18 +18,29 @@ const emit = defineEmits<{
 }>()
 
 const betAmount = ref(props.minRaise)
-const showSlider = ref(props.canBet || props.canRaise)
+const showSlider = ref(false)
 
 watch(() => props.minRaise, (v) => {
   if (betAmount.value < v) betAmount.value = v
 })
 
-function emitAction(type: string, amount?: number) {
-  emit('action', { type, amount })
+// Auto-show slider when bet/raise becomes available (new round)
+watch([() => props.canBet, () => props.canRaise], ([b, r]) => {
+  if (b || r) {
+    showSlider.value = true
+    if (b) betAmount.value = props.minRaise
+    else betAmount.value = props.callAmount + props.minRaise
+  } else {
+    showSlider.value = false
+  }
+}, { immediate: true })
+
+function doAction(type: string, amount?: number) {
+  emit('action', { type, amount: amount ?? 0 })
 }
 
-function toggleSlider() {
-  showSlider.value = !showSlider.value
+function confirmBet() {
+  emit('action', { type: props.canBet ? 'BET' : 'RAISE', amount: betAmount.value })
 }
 
 const betMax = computed(() => props.myChips)
@@ -48,7 +59,7 @@ const timerDisplay = computed(() => {
   >
     <!-- Timer -->
     <div
-      v-if="!isMyTurn && timeLeftSec > 0"
+      v-if="timeLeftSec > 0"
       class="text-center text-sm font-bold"
       :class="timeLeftSec <= 10 ? 'text-red-400' : 'text-gray-400'"
     >
@@ -59,6 +70,9 @@ const timerDisplay = computed(() => {
     <div v-if="!isMyTurn" class="text-center text-xs" style="color: var(--color-text-muted)">
       等待对手操作...
     </div>
+    <div v-else class="text-center text-xs" style="color: var(--color-gold)">
+      轮到你行动!
+    </div>
 
     <!-- Action buttons -->
     <div v-if="isMyTurn" class="flex gap-2">
@@ -67,7 +81,7 @@ const timerDisplay = computed(() => {
         data-test="btn-fold"
         class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
         style="background-color: var(--color-accent)"
-        @click="emitAction('FOLD')"
+        @click="doAction('FOLD')"
       >
         Fold
       </button>
@@ -78,7 +92,7 @@ const timerDisplay = computed(() => {
         data-test="btn-check"
         class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
         style="background-color: var(--color-primary)"
-        @click="emitAction('CHECK')"
+        @click="doAction('CHECK')"
       >
         Check
       </button>
@@ -87,20 +101,9 @@ const timerDisplay = computed(() => {
         data-test="btn-call"
         class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
         style="background-color: var(--color-primary)"
-        @click="emitAction('CALL')"
+        @click="doAction('CALL')"
       >
         Call {{ callAmount }}
-      </button>
-
-      <!-- Bet / Raise toggle -->
-      <button
-        v-if="canBet || canRaise"
-        data-test="btn-bet-raise"
-        class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
-        style="background-color: var(--color-gold); color: black"
-        @click="toggleSlider"
-      >
-        {{ canBet ? 'Bet' : 'Raise' }}
       </button>
     </div>
 
@@ -109,7 +112,7 @@ const timerDisplay = computed(() => {
       <div class="flex items-center gap-2">
         <input
           type="range"
-          :min="canBet ? minRaise : callAmount + minRaise"
+          :min="Math.min(canBet ? minRaise : callAmount + minRaise, betMax)"
           :max="betMax"
           v-model.number="betAmount"
           class="flex-1 accent-yellow-400"
@@ -120,7 +123,7 @@ const timerDisplay = computed(() => {
         data-test="btn-confirm-bet"
         class="w-full py-2 rounded-lg font-bold text-sm text-black transition active:scale-95"
         style="background-color: var(--color-gold)"
-        @click="emitAction(canBet ? 'BET' : 'RAISE', betAmount)"
+        @click="confirmBet"
       >
         {{ canBet ? `Bet ${betAmount}` : `Raise to ${betAmount}` }}
       </button>

@@ -73,13 +73,41 @@ class ActionValidatorTest {
     }
 
     @Test
-    void shouldDisallowBetLargerThanChips() {
+    void shouldAllowBetAllChipsAsAllIn() {
         var players = List.of(p("A", 50, 0, 0));
         var s = state(GamePhase.FLOP, players, 0);
         var actions = ActionValidator.legalActions(s);
-        // BET is allowed, but validate with amount will cap it
+        // BET is allowed, and amount > chips is capped to all-in in processAction
         assertTrue(actions.contains(GameAction.BET));
         assertDoesNotThrow(() -> ActionValidator.validate(s, GameAction.BET, 50));
-        assertThrows(IllegalArgumentException.class, () -> ActionValidator.validate(s, GameAction.BET, 100));
+        // Amount > chips should NOT throw — the engine caps it to all-in
+        assertDoesNotThrow(() -> ActionValidator.validate(s, GameAction.BET, 100));
+    }
+
+    @Test
+    void zeroChipsPlayerOnlyFold() {
+        var pAllIn = new GamePlayerState("Z", "Z", 0, 0, 0, 0, false, true, List.of());
+        var players = List.of(pAllIn, p("B", 1000, 0, 0));
+        var s = state(GamePhase.FLOP, players, 20);
+        var actions = ActionValidator.legalActions(s);
+        assertTrue(actions.isEmpty(), "All-in player with 0 chips should have no legal actions");
+    }
+
+    @Test
+    void allInPlayerNotActive() {
+        var pAllIn = new GamePlayerState("Z", "Z", 0, 0, 100, 100, false, true, List.of());
+        var players = List.of(pAllIn, p("B", 1000, 0, 0));
+        var s = state(GamePhase.FLOP, players, 40);
+        var actions = ActionValidator.legalActions(s);
+        assertTrue(actions.isEmpty(), "All-in player should have no legal actions");
+    }
+
+    @Test
+    void minRaiseEnforced() {
+        var players = List.of(p("A", 200, 40, 0));
+        var s = state(GamePhase.FLOP, players, 40);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> ActionValidator.validate(s, GameAction.RAISE, 50));
+        assertTrue(ex.getMessage().contains("Raise must be at least"));
     }
 }

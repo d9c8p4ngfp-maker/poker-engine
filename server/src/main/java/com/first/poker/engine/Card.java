@@ -3,7 +3,10 @@ package com.first.poker.engine;
 public record Card(Suit suit, Rank rank) implements Comparable<Card> {
 
     public enum Suit { SPADES, HEARTS, DIAMONDS, CLUBS }
-    public enum Rank { TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE }
+    public enum Rank { TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE;
+
+        public int numericValue() { return this.ordinal(); }
+    }
 
     @Override
     public String toString() {

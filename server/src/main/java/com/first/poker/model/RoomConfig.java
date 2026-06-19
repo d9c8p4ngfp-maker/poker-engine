@@ -20,6 +20,7 @@ public class RoomConfig {
     private LeaveHandling leaveHandling;
     private BuyInRule buyInRule;
     private boolean recordHistory;
+    private boolean bustEndsGame;
 
     public static RoomConfig withDefaults() {
         RoomConfig c = new RoomConfig();
@@ -35,6 +36,7 @@ public class RoomConfig {
         c.leaveHandling = LeaveHandling.AUTO_FOLD;
         c.buyInRule = BuyInRule.ONCE_ONLY;
         c.recordHistory = true;
+        c.bustEndsGame = false;
         return c;
     }
 

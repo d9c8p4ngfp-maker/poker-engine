@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>扑克牌样式预览</title>
+<!-- 内联 favicon SVG -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231a1a2e'/%3E%3Crect x='4' y='4' width='56' height='56' rx='10' fill='none' stroke='%23ffd700' stroke-width='2'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-size='36' fill='%231a7f37'%3E♠%3C/text%3E%3C/svg%3E" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0d1117;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+  h1 { text-align: center; color: #ffd700; margin-bottom: 8px; font-size: 1.8rem; }
+  .subtitle { text-align: center; color: #a0a0a0; margin-bottom: 40px; font-size: 0.9rem; }
+
+  section { max-width: 900px; margin: 0 auto 48px; }
+  h2 { color: #ffd700; font-size: 1.2rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #333; }
+
+  .row { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+
+  /* ========== 卡牌通用 ========== */
+  .card {
+    width: 120px; height: 168px;
+    border-radius: 10px;
+    position: relative;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    cursor: default;
+    transition: transform 0.2s;
+  }
+  .card:hover { transform: translateY(-8px); }
+
+  /* ========== 牌背 ========== */
+  .card-back {
+    background: linear-gradient(135deg, #1a3a5c 0%, #0f2440 50%, #1a3a5c 100%);
+    border: 3px solid #ffd700;
+  }
+  .card-back::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 2px solid rgba(255,215,0,0.3);
+    border-radius: 4px;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 5px,
+      rgba(255,215,0,0.06) 5px,
+      rgba(255,215,0,0.06) 10px
+    );
+  }
+  .card-back::after {
+    content: '♠♥♦♣';
+    position: absolute;
+    inset: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: rgba(255,215,0,0.15);
+    letter-spacing: 4px;
+  }
+
+  /* ========== 牌面 ========== */
+  .card-face {
+    background: #fff;
+    border: 2px solid #ccc;
+    color: #000;
+  }
+  .card-face.red { color: #c0392b; }
+  .card-face .rank-top,
+  .card-face .rank-bottom {
+    position: absolute;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1;
+  }
+  .card-face .rank-top { top: 6px; left: 8px; font-size: 18px; }
+  .card-face .rank-bottom { bottom: 6px; right: 8px; font-size: 18px; transform: rotate(180deg); }
+  .card-face .rank-top .suit,
+  .card-face .rank-bottom .suit { display: block; font-size: 14px; margin-top: -2px; }
+
+  .card-face .pips {
+    position: absolute;
+    inset: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    pointer-events: none;
+  }
+  .card-face .pips.multi {
+    font-size: 28px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 4px 8px;
+  }
+  .card-face .court {
+    position: absolute;
+    inset: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+  }
+
+  /* ========== Favicon 区 ========== */
+  .favicon-grid { display: flex; gap: 24px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .favicon-item { text-align: center; }
+  .favicon-item svg { display: block; margin: 0 auto; }
+  .favicon-item span { display: block; margin-top: 8px; font-size: 0.8rem; color: #a0a0a0; }
+
+  /* ========== 牌桌背景预览 ========== */
+  .table-preview {
+    background: radial-gradient(ellipse at center, #1a6b2e 0%, #0d4a1a 100%);
+    border-radius: 16px;
+    padding: 40px 20px;
+    border: 6px solid #5a3a1a;
+    box-shadow: inset 0 0 80px rgba(0,0,0,0.4);
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .table-preview .card { width: 90px; height: 126px; border-radius: 8px; }
+  .table-preview .card .rank-top { font-size: 14px; top: 4px; left: 6px; }
+  .table-preview .card .rank-bottom { font-size: 14px; bottom: 4px; right: 6px; }
+  .table-preview .card .rank-top .suit,
+  .table-preview .card .rank-bottom .suit { font-size: 10px; }
+  .table-preview .card .pips { inset: 22px; font-size: 32px; }
+  .table-preview .card.card-back::after { font-size: 20px; }
+
+  /* ========== 筹码 ========== */
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%;
+    font-weight: bold; font-size: 0.7rem; color: #fff;
+    border: 3px dashed rgba(255,255,255,0.4);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .chip-1   { background: radial-gradient(circle at 40% 35%, #fff, #ddd 60%, #bbb); color: #333; }
+  .chip-5   { background: radial-gradient(circle at 40% 35%, #ff6b6b, #c0392b 60%, #8b0000); }
+  .chip-25  { background: radial-gradient(circle at 40% 35%, #74b9ff, #2d7a3e 60%, #1a5c2a); }
+  .chip-100 { background: radial-gradient(circle at 40% 35%, #1a1a2e, #111 60%, #000); border-color: #ffd700; }
+</style>
+</head>
+<body>
+
+<h1>♠ 德州扑克 — 静态资源预览 ♠</h1>
+<p class="subtitle">全部由纯 CSS 绘制，零外部图片依赖</p>
+
+<!-- ====== Favicon ====== -->
+<section>
+  <h2>🎯 Favicon（浏览器标签页图标）</h2>
+  <div class="favicon-grid">
+    <div class="favicon-item">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="12" fill="#1a1a2e"/>
+        <rect x="4" y="4" width="56" height="56" rx="10" fill="none" stroke="#ffd700" stroke-width="2"/>
+        <text x="32" y="44" text-anchor="middle" font-size="36" fill="#1a7f37">♠</text>
+      </svg>
+      <span>深色底 + 金边 + 黑桃</span>
+    </div>
+    <div class="favicon-item">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="12" fill="#1a7f37"/>
+        <text x="32" y="44" text-anchor="middle" font-size="36" fill="#ffd700">♠</text>
+      </svg>
+      <span>绿色底 + 金色黑桃</span>
+    </div>
+    <div class="favicon-item">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="12" fill="#0d6b2e"/>
+        <text x="20" y="44" font-size="30" fill="#ffd700">♠</text>
+        <text x="32" y="44" font-size="30" fill="#e94560">♥</text>
+        <text x="44" y="44" font-size="30" fill="#ffd700">♦</text>
+      </svg>
+      <span>绿色底 + 三种花色</span>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 牌背 ====== -->
+<section>
+  <h2>🃏 牌背</h2>
+  <div class="row">
+    <div class="card card-back" title="牌背"></div>
+    <div class="card card-back" style="border-color: #e94560;" title="红色边框"></div>
+    <div class="card card-back" style="border-color: #1a7f37;" title="绿色边框"></div>
+  </div>
+</section>
+
+<!-- ====== 数字牌面 ====== -->
+<section>
+  <h2>🂡 数字牌面 (A~10)</h2>
+  <div class="row">
+    <!-- ♠ A,2,3,4,5 -->
+    <div class="card card-face">
+      <div class="rank-top">A<span class="suit">♠</span></div>
+      <div class="rank-bottom">A<span class="suit">♠</span></div>
+      <div class="pips">♠</div>
+    </div>
+    <div class="card card-face">
+      <div class="rank-top">5<span class="suit">♠</span></div>
+      <div class="rank-bottom">5<span class="suit">♠</span></div>
+      <div class="pips multi">♠ ♠ ♠ ♠ ♠</div>
+    </div>
+    <div class="card card-face">
+      <div class="rank-top">10<span class="suit">♠</span></div>
+      <div class="rank-bottom">10<span class="suit">♠</span></div>
+      <div class="pips multi">♠ ♠ ♠ ♠ ♠ ♠ ♠ ♠ ♠ ♠</div>
+    </div>
+    <!-- ♥ A,K -->
+    <div class="card card-face red">
+      <div class="rank-top">A<span class="suit">♥</span></div>
+      <div class="rank-bottom">A<span class="suit">♥</span></div>
+      <div class="pips" style="color:#c0392b;">♥</div>
+    </div>
+    <div class="card card-face red">
+      <div class="rank-top">K<span class="suit">♥</span></div>
+      <div class="rank-bottom">K<span class="suit">♥</span></div>
+      <div class="court" style="color:#c0392b;">👑</div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 牌桌效果 ====== -->
+<section>
+  <h2>🟢 牌桌上的效果</h2>
+  <div class="table-preview">
+    <div class="card card-back"></div>
+    <div class="card card-back"></div>
+    <div class="card card-face">
+      <div class="rank-top">A<span class="suit">♠</span></div>
+      <div class="rank-bottom">A<span class="suit">♠</span></div>
+      <div class="pips">♠</div>
+    </div>
+    <div class="card card-face red">
+      <div class="rank-top">K<span class="suit">♥</span></div>
+      <div class="rank-bottom">K<span class="suit">♥</span></div>
+      <div class="court" style="color:#c9392b;">👑</div>
+    </div>
+    <div class="card card-face red">
+      <div class="rank-top">10<span class="suit">♦</span></div>
+      <div class="rank-bottom">10<span class="suit">♦</span></div>
+      <div class="pips multi" style="color:#c0392b;">♦ ♦ ♦ ♦ ♦ ♦ ♦ ♦ ♦ ♦</div>
+    </div>
+  </div>
+  <p style="text-align:center; margin-top:16px; color:#a0a0a0; font-size:0.85rem;">
+    深绿色牌桌背景 + 金色边框，模拟真实牌桌效果。左侧两张是牌背（暗牌/底牌）
+  </p>
+</section>
+
+<!-- ====== 筹码 ====== -->
+<section>
+  <h2>💰 筹码样式</h2>
+  <div class="row">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="chip chip-1">1</div>
+      <div class="chip chip-5">5</div>
+      <div class="chip chip-25">25</div>
+      <div class="chip chip-100">100</div>
+    </div>
+  </div>
+  <p style="text-align:center; margin-top:12px; color:#a0a0a0; font-size:0.85rem;">
+    四种面额：1 / 5 / 25 / 100，CSS 径向渐变模拟立体感
+  </p>
+</section>
+
+</body>
+</html>

@@ -22,17 +22,19 @@ public class BettingRoundManager {
                 yield advanceToNextActive(s.withActedMask(newMask));
             }
             case CALL -> {
-                int toCall = s.currentBet() - player.roundBet();
+                int toCall = Math.min(s.currentBet() - player.roundBet(), player.chips());
                 var updated = player.withChipsDeducted(toCall);
                 int newMask = s.actedMask() | (1 << playerIdx);
-                yield advanceToNextActive(s.withUpdatedPlayer(playerIdx, updated)
-                                           .withActedMask(newMask));
+                yield advanceToNextActive(s
+                    .withUpdatedPlayer(playerIdx, updated)
+                    .withPot(s.pot() + toCall)
+                    .withActedMask(newMask));
             }
             case BET -> {
                 var updated = player.withChipsDeducted(amount);
-                // Reset acted mask: only current player has acted since this bet
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
+                    .withPot(s.pot() + amount)
                     .withCurrentBet(amount)
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));
@@ -41,6 +43,7 @@ public class BettingRoundManager {
                 var updated = player.withChipsDeducted(amount);
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
+                    .withPot(s.pot() + amount)
                     .withCurrentBet(amount)
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));

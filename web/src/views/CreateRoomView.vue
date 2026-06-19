@@ -7,30 +7,50 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const name = ref(userStore.nickname + '的牌局')
-const maxSeats = ref(6)
+const maxSeats = ref(8)
 const minPlayers = ref(2)
 const smallBlind = ref(10)
 const initialChips = ref(1000)
 const actionTimeout = ref(30)
+const bustEndsGame = ref(true)
 const password = ref('')
 const showPassword = ref(false)
 
+const errorMsg = ref('')
+const creating = ref(false)
+
 async function handleCreate() {
-  const res = await fetch('http://localhost:8080/api/rooms', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: name.value,
-      password: showPassword.value ? password.value : null,
-      maxSeats: maxSeats.value,
-      minPlayers: minPlayers.value,
-      smallBlind: smallBlind.value,
-      initialChips: initialChips.value,
-      actionTimeoutSec: actionTimeout.value,
-    }),
-  })
-  const data = await res.json()
-  router.push(`/room/${data.roomId}`)
+  errorMsg.value = ''
+  creating.value = true
+  try {
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomName: name.value,
+        ownerId: userStore.playerId,
+        ownerNickname: userStore.nickname,
+        password: showPassword.value ? password.value : null,
+        maxSeats: maxSeats.value,
+        minPlayers: minPlayers.value,
+        smallBlind: smallBlind.value,
+        initialChips: initialChips.value,
+        actionTimeoutSec: actionTimeout.value,
+        bustEndsGame: bustEndsGame.value,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      throw new Error(err.message || `创建失败 (${res.status})`)
+    }
+    const data = await res.json()
+    userStore.setRoomId(data.roomId)
+    router.push(`/room/${data.roomId}`)
+  } catch (e: any) {
+    errorMsg.value = e.message || '创建房间失败，请检查后端是否启动'
+  } finally {
+    creating.value = false
+  }
 }
 </script>
 
@@ -87,6 +107,11 @@ async function handleCreate() {
             style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
         </div>
 
+        <label class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted)">
+          <input v-model="bustEndsGame" type="checkbox" checked />
+          淘汰出局：有人输光筹码则比赛结束，筹码最多者获胜
+        </label>
+
         <div class="space-y-2">
           <label class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted)">
             <input v-model="showPassword" type="checkbox" /> 设置房间密码
@@ -97,10 +122,12 @@ async function handleCreate() {
         </div>
       </div>
 
-      <button @click="handleCreate"
+      <p v-if="errorMsg" class="text-sm text-red-400">{{ errorMsg }}</p>
+
+      <button @click="handleCreate" :disabled="creating"
         class="w-full py-4 rounded-lg font-bold text-white text-lg transition"
-        style="background-color: var(--color-primary)">
-        创建房间
+        :style="{ backgroundColor: creating ? '#666' : 'var(--color-primary)' }">
+        {{ creating ? '创建中...' : '创建房间' }}
       </button>
     </div>
   </div>

@@ -6,13 +6,17 @@ import com.first.poker.model.Player;
 import com.first.poker.model.Room;
 import com.first.poker.model.RoomConfig;
 import org.springframework.stereotype.Service;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class RoomService {
     private final RoomRegistry registry;
+    private final GameSessionService gameSessionService;
 
-    public RoomService(RoomRegistry registry) {
+    public RoomService(RoomRegistry registry, GameSessionService gameSessionService) {
         this.registry = registry;
+        this.gameSessionService = gameSessionService;
     }
 
     public Room createRoom(CreateRoomRequest req) {
@@ -26,7 +30,9 @@ public class RoomService {
         if (req.getOwnerId() != null) {
             String nickname = req.getOwnerNickname() != null ? req.getOwnerNickname() : req.getOwnerId();
             Player owner = new Player(req.getOwnerId(), nickname, 0, config.getInitialChips());
+            owner.setOwner(true);
             room.addPlayer(owner);
+            room.setOwner(owner);
         }
         return room;
     }
@@ -44,11 +50,30 @@ public class RoomService {
         return registry.findById(roomId);
     }
 
+    public List<Player> addBots(String roomId, int count) {
+        Room room = registry.findById(roomId);
+        if (room == null) return null;
+        var bots = new ArrayList<Player>();
+        String[] botNames = {"🤖小Q", "🤖老K", "🤖Ace", "🤖大盲", "🤖金刚", "🤖顺子", "🤖同花"};
+        int existingBots = (int) room.getPlayers().stream().filter(p -> p.getPlayerId().startsWith("bot-")).count();
+        for (int i = 0; i < count; i++) {
+            int botNum = existingBots + i + 1;
+            String botId = "bot-" + roomId + "-" + botNum;
+            String name = botNum <= botNames.length ? botNames[botNum - 1] : ("🤖机器人" + botNum);
+            Player bot = new Player(botId, name, room.getPlayers().size(), room.getConfig().getInitialChips());
+            if (room.addPlayer(bot)) {
+                bots.add(bot);
+            }
+        }
+        return bots;
+    }
+
     private void applyConfig(RoomConfig config, CreateRoomRequest req) {
         if (req.getMaxSeats() != null) config.setMaxSeats(req.getMaxSeats());
         if (req.getMinPlayers() != null) config.setMinPlayers(req.getMinPlayers());
         if (req.getInitialChips() != null) config.setInitialChips(req.getInitialChips());
         if (req.getSmallBlind() != null) config.setSmallBlind(req.getSmallBlind());
         if (req.getActionTimeoutSec() != null) config.setActionTimeoutSec(req.getActionTimeoutSec());
+        if (req.getBustEndsGame() != null) config.setBustEndsGame(req.getBustEndsGame());
     }
 }

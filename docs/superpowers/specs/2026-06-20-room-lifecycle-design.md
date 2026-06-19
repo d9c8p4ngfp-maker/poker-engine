@@ -104,17 +104,18 @@ Owner = index 0. When owner's player object is removed, the next player at index
 
 ## 2. Extended Status Model
 
-Current: `WAITING | PLAYING | FINISHED`  
-Extended: `WAITING | PLAYING | FINISHED | DISSOLVED`
+**Important:** Per §1.4, `Room.status` is only set in the constructor and never modified. This design does NOT maintain `Room.status` as a runtime field. Instead, room state is **derived** from two sources:
 
-| Status | Meaning | Players can join? | Game can start? |
-|--------|---------|-------------------|-----------------|
-| WAITING | Room open, waiting for players | Yes | Yes (if ≥2 with chips) |
-| PLAYING | Hand in progress | Yes (as spectator/queue) | No |
-| FINISHED | Tournament completed (bustEndsGame) | No | No |
-| DISSOLVED | Room destroyed | No | No |
+| Logical State | How Derived | Players can join? | Game can start? |
+|---------------|-------------|-------------------|-----------------|
+| WAITING | `GameSessionService.sessions` has no entry for this room | Yes (add as ACTIVE) | Yes (if ≥2 with chips) |
+| PLAYING | `sessions.containsKey(roomId)` is `true` | Yes (add as QUEUED) | No |
+| FINISHED | Game over broadcast sent, `sessions` entry removed | No (reject join) | No (tournament concluded) |
+| DISSOLVED | Room removed from `RoomRegistry.rooms` | No (room not found) | No |
 
-**Note on FINISHED vs WAITING after game over:** When `bustEndsGame=false` and a hand ends, the room transitions to WAITING — NOT FINISHED. FINISHED is only set when `setGameOver` fires (all busted or bustEndsGame first bust).
+**`FINISHED` vs `WAITING` after game over:** When `bustEndsGame=false` and a hand ends, the sessions map is cleared (`endGame`) and the room returns to logical WAITING. FINISHED is only set when `broadcastGameOver` fires (all busted or `bustEndsGame` first bust). The actual `Room.status` field is **never written** — FINISHED is tracked by the absence of a session AND the presence of a `gameOver=true` flag in the frontend.
+
+**`DISSOLVED`:** Expressed by physically removing the Room from `RoomRegistry.rooms`. There is no `Room.status = DISSOLVED` — the room is simply gone. Frontend detects this when `GET /api/rooms/{roomId}` returns 404.
 
 ---
 
@@ -124,11 +125,14 @@ Extended: `WAITING | PLAYING | FINISHED | DISSOLVED`
 Add `private boolean owner` to Player. The first player is owner. On owner leave, ownership transfers automatically.
 
 ### 3.2 Player State (`Player.status`)
-Add `enum PlayerStatus { ACTIVE, SPECTATING, QUEUED, LEFT }` to Player:  
-- **ACTIVE:** Has seat, chips, plays normally  
-- **SPECTATING:** Has chips=0 or chose to spectate, stays in room, no seat assignment at hand start  
-- **QUEUED:** Joined during PLAYING, waiting for next hand to be seated  
-- **LEFT:** Explicitly left the room (disconnected), seat is freed. Reconnecting switches back to ACTIVE if seat still available.
+Add `enum PlayerStatus { ACTIVE, SPECTATING, QUEUED, LEFT, DISCONNECTED }` to Player:  
+- **ACTIVE:** Has seat, has chips, plays normally in current/next hand  
+- **SPECTATING:** Has chips=0, chose to watch. Stays in `room.players` with seatIndex=-1. No seat at hand start.  
+- **QUEUED:** Joined during PLAYING. Stays in `room.players` with seatIndex=-1. Waiting for next hand to get a seat.  
+- **DISCONNECTED:** WebSocket disconnected but player hasn't explicitly left. Seat preserved. Auto-fold on timeout. On reconnect → ACTIVE.  
+- **LEFT:** Explicitly left the room. Removed from `room.players`. Can rejoin fresh.
+
+**All states share the same `room.players` list.** No separate queue list. `roomToResponse()` includes `status` in the player JSON so the frontend can render differently based on status.
 
 ### 3.3 Server-Persistent Room Lifecycle
 Rooms survive only within JVM process lifetime (same as current). No database.
@@ -148,9 +152,7 @@ public Room joinRoom(String roomId, JoinRoomRequest req) {
     Room room = registry.findById(roomId);
     if (room == null) return null;
 
-    boolean isPlaying = gameSessionService.getState(roomId) != null;
-    // (If GameSessionService is not injected in RoomService, inject it,
-    //  or expose a boolean method: gameSessionService.isPlaying(roomId))
+    boolean isPlaying = gameSessionService.hasActiveSession(roomId);
 
     if (isPlaying) {
         // Add as QUEUED — spectator view, no seat, join prompt after hand
@@ -182,52 +184,81 @@ public Room joinRoom(String roomId, JoinRoomRequest req) {
 
 ## 4. Detailed Interaction Flows
 
-### 4.1 Player Leave
+### 4.1 Player Leave (Explicit) vs Disconnect (Implicit)
+
+**Two distinct scenarios with different behaviors:**
+
+#### A. Explicit Leave (user clicks "退出" or STOMP leave message)
 
 ```
-User clicks "退出" (or closes tab → WebSocket disconnect)
-
 Frontend:
   1. Send STOMP message: /app/room/{roomId}/leave  { playerId }
-  2. Router.push('/')
+  2. disconnect()
+  3. roomStore.reset()
+  4. router.push('/')
 
 Backend (GameMessageController @MessageMapping):
   1. Remove player from room.players
-  2. Free the seatIndex (for future joins)
-  3. If player was owner → transfer ownership to next human ACTIVE/QUEUED player
-  4. If owner left and NO human ACTIVE/QUEUED remains →
+  2. Free the seatIndex (mark as available for future joins)
+  3. If player was owner → transfer ownership to next human ACTIVE player (preferred) or QUEUED player (fallback)
+       - New owner can startGame only when room is logically WAITING.
+       - If new owner is QUEUED (no seat yet), the "开始游戏" button is disabled until they're seated.
+  4. If owner left and NO human player remains (only bots) →
        broadcast "room_dissolved" to /topic/room/{roomId}
        registry.removeRoom(roomId)
        return
-  5. If game was PLAYING → auto-fold the leaving player in current hand
-  6. Broadcast updated room state to /topic/room/{roomId}
+  5. If game was PLAYING → auto-fold the leaving player.
+       - ⚠️ Requires per-room lock (see §9 bug C2/C3). Without locking, this operation can race with concurrent actions.
+       - Alternative (if locking not yet implemented): mark player as LEFT but defer auto-fold to the existing timeout mechanism.
+  6. Broadcast `{type: "player_left", playerId}` to /topic/room/{roomId}
+  7. Broadcast updated room state to /topic/room/{roomId}
 ```
 
-### 4.2 Player Join During Different States
+#### B. Implicit Disconnect (WebSocket dropped, tab closed, network loss)
+
+```
+Backend (@EventListener SessionDisconnectEvent):
+  1. Look up player by session ID → get playerId + roomId
+  2. Set Player.status = DISCONNECTED, Player.connected = false
+  3. If it was this player's turn → auto-fold (requires per-room lock)
+  4. Broadcast `{type: "player_disconnected", playerId}` to /topic/room/{roomId}
+  5. Start a 60s grace timer:
+     - If player reconnects before 60s → status back to ACTIVE (if still WAITING/their seat)
+     - If 60s expires → remove from room.players, free seat (same as explicit leave)
+```
+
+**Owner transfer on explicit leave only** — if owner disconnects, ownership is NOT transferred until the grace period expires or the 60s timer fires.
+
+### 4.2 Player Join During Different Logical States
 
 ```
 New player calls POST /api/rooms/{roomId}/join
 
-Backend (RoomController):
-  case WAITING:
+Backend (RoomController / RoomService):
+  case WAITING (no session in GameSessionService.sessions):
     1. Set PlayerStatus.ACTIVE
     2. Assign next available seatIndex
     3. Give initialChips chips
     4. Broadcast room update
     5. Player sees waiting room view
 
-  case PLAYING:
+  case PLAYING (session exists in GameSessionService.sessions):
     1. Set PlayerStatus.QUEUED
-    2. No seat, no chips yet
-    3. Subscribe to game channels
-    4. Player sees full table view + "排队中 — 对局结束后加入" overlay
+    2. Added to room.players with seatIndex=-1
+    3. Subscribe to game channels (public only — no seat, no hole cards)
+    4. Player sees waiting overlay: "等待对局结束..." + pot/phase info
     5. On hand complete (syncRoomChips runs):
        - If room returns to WAITING:
-           a. Prompt QUEUED players: "是否加入下一局?" (5s auto-accept)
+           a. Prompt QUEUED players: "是否加入下一局?" (10s auto-accept)
            b. On accept → assign seat, give chips, set ACTIVE
            c. Broadcast updated room
 
-  case FINISHED:
+  case FINISHED (game over broadcast sent, no session):
+    Reject — room exists but tournament concluded.
+
+  case DISSOLVED (room not in registry):
+    404 — room doesn't exist.
+```
     → 403 "Match concluded"
 
   case DISSOLVED:
@@ -237,39 +268,45 @@ Backend (RoomController):
 ### 4.3 Mid-Game Join Seating (After PLAYING → WAITING Transition)
 
 ```
-Hand completes → checkGameOver returns false → room ready for next hand
+Hand completes → checkGameOver returns false → endGame clears session → room is logically WAITING
 
 Backend:
   1. After syncRoomChips:
-  2. For each QUEUED player:
-     a. If seats available (not full) → send "queue_prompt" to /topic/player/{id}/game
+  2. Iterate room.players (QUEUED players already in the list with status=QUEUED, seatIndex=-1):
+     a. If seats available (active players < maxSeats) → send "queue_prompt" to /topic/player/{id}/game
      b. Auto-accept after 10s if no response
   3. On accept:
      a. Set PlayerStatus.ACTIVE
      b. Assign seat (fill empty slots first, then append)
      c. Set chips = initialChips
-     d. Broadcast updated room
+     d. Broadcast updated room state to /topic/room/{roomId}
 
 Frontend (RoomView.vue):
   Subscribe handler:
     if data.type === 'queue_prompt':
        show queue prompt modal: "对局结束，是否加入下一局？" [加入] [继续观战]
        timeout 10s → auto-join
+
+Seat assignment: seats 0..maxSeats-1. Maintain a boolean[maxSeats] occupied[] from room.players
+where player.status == ACTIVE. Fill first available slot. If all full, player remains QUEUED
+and will be prompted again after the next hand.
 ```
 
 ### 4.4 Spectating a Live Game (QUEUED during PLAYING)
 
 ```
 Frontend:
-  - QUEUED players see full PokerTable (same as ACTIVE)
-  - ActionPanel replaced by: "排队中 — 本局结束后加入"
-  - No hole cards shown (watches public channel only)
+  - QUEUED players see a waiting overlay on top of the room view:
+    "等待对局结束..." + 当前 pot 和 phase 简略信息
+  - They do NOT see the PokerTable (no seat, no hole cards)
+  - They subscribe to /topic/room/{roomId}/game (public channel) for minimal game progress
+  - They do NOT have a private channel subscription (no hole cards)
   - Can click "🏆 排行" to see leaderboard
 
 Backend:
-  - GameStateSnapshot.buildPublic already shows all players' chips/bets
-  - QUEUED players subscribe to /topic/room/{roomId}/game (public)
-  - Do NOT get private channel snapshots (no hole cards)
+  - GameStateSnapshot.buildPublic is broadcast to /topic/room/{roomId}/game
+  - QUEUED players receive this and can extract phase/progress info
+  - No private per-player snapshot is sent (playerId is not in GameState.players list)
 ```
 
 ### 4.5 Room Dissolution by Inactivity
@@ -279,10 +316,9 @@ New scheduled task (ScheduledExecutorService):
   Every 5 minutes:
     1. Scan all rooms in registry
     2. For each room:
-       a. If handCount == 0 AND createdAt + 30min < now()
-          OR lastActivity (new field on Room) + 30min < now()
-       → dissolve room
-    3. "lastActivity" updated on: game start, game action, player join, borrow
+       if lastActivity + 30min < now() → dissolve room
+    3. lastActivity is initialized to createdAt, then updated on:
+       game start, game action, player join, player leave, player disconnect, borrow
 
 On dissolution:
   1. broadcast "room_dissolved" to /topic/room/{roomId}
@@ -297,9 +333,10 @@ On dissolution:
 ### 5.1 New Room Fields
 ```java
 // Room.java additions:
-private long lastActivity;     // System.currentTimeMillis() on any interaction
-private int handCount;         // already exists
-private List<Player> queue;    // QUEUED players (not in players list during game)
+private long lastActivity;     // System.currentTimeMillis() on any interaction; initialized to createdAt
+private Player owner;          // explicit owner reference (not index-based)
+// handCount already exists — increment it in startGame if needed for tracking
+// No separate queue list — QUEUED/SPECTATING/DISCONNECTED players are in room.players with PlayerStatus
 ```
 
 ### 5.2 New Player Fields
@@ -309,21 +346,25 @@ private boolean owner;           // true for room's owner
 private PlayerStatus status;     // ACTIVE | SPECTATING | QUEUED | LEFT
 ```
 
-### 5.3 New REST Endpoints
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/rooms/{roomId}/leave` | Player explicitly leaves room |
-| POST | `/api/rooms/{roomId}/dissolve` | Owner dissolves room (new) |
-| POST | `/api/rooms/{roomId}/borrow` | Already exists — no change |
-
-### 5.4 New STOMP Destinations
+### 5.3 New Endpoints (STOMP only)
 
 | Destination | Direction | Purpose |
 |-------------|-----------|---------|
-| `/app/room/{roomId}/leave` | C→S | Player leaves room |
+| `/app/room/{roomId}/leave` | C→S | Player explicitly leaves room |
 | `/app/room/{roomId}/dissolve` | C→S | Owner dissolves room |
-| `/topic/room/{roomId}` | S→C | Now includes: `type: "room_dissolved"`, `player_left`, `player_joined` |
+
+**Why STOMP only?** The `startGame` precedent shows the danger of dual REST+STOMP entry points (REST doesn't register disconnect handlers). All room lifecycle operations go through STOMP to guarantee consistent handling. `borrow` remains REST because it doesn't need real-time notification — the response+room broadcast is sufficient.
+
+### 5.4 New Broadcast Message Types (S→C)
+
+`/topic/room/{roomId}` now carries `type` field:
+
+| type | When | Payload |
+|------|------|---------|
+| `room_dissolved` | Room removed from registry | `{type, roomId}` |
+| `player_left` | Player explicitly left | `{type, playerId, newOwnerId?}` |
+| `player_joined` | New player joined room | `{type, playerId, nickname, seatIndex}` |
+| `player_disconnected` | WebSocket dropped but still in grace period | `{type, playerId}` |
 
 ### 5.5 New RoomService Methods
 ```java
@@ -354,21 +395,62 @@ async function handleLeave() {
 ```
 Current `handleLeave` just navigates without notifying backend. Replace with STOMP message.
 
-### 6.3 RoomView.vue — Queue Overlay (New)
-```
-<div v-if="myPlayer?.status === 'QUEUED'" class="queue-overlay">
-  排队中 — 本局结束后加入
-</div>
+### 6.3 RoomView.vue — Room Channel Message Handling (Updated)
+
+```js
+subscribe(`/topic/room/${roomId}`, (msg) => {
+  const data = JSON.parse(msg.body)
+
+  if (data.type === 'room_dissolved') {
+    alert('房间已解散')
+    disconnect()
+    roomStore.reset()
+    router.push('/')
+    return
+  }
+
+  if (data.type === 'player_left') {
+    roomStore.players = roomStore.players.filter(p => p.playerId !== data.playerId)
+    if (data.newOwnerId && data.newOwnerId === userStore.playerId) {
+      alert('你已成为新房主')
+      refreshRoom()
+    }
+    return
+  }
+
+  if (data.type === 'player_joined') {
+    refreshRoom() // full refresh to get updated player list
+    return
+  }
+
+  if (data.type === 'player_disconnected') {
+    // Visual indicator: show "n玩家已断开" toast or dim player in list
+    const p = roomStore.players.find(p => p.playerId === data.playerId)
+    if (p) p.connected = false
+    return
+  }
+
+  // ... existing room state update logic
+})
 ```
 
-### 6.4 RoomView.vue — Queue Prompt Modal (New)
+### 6.4 RoomView.vue — Queue Overlay (New)
+```
+<div v-if="myPlayer?.status === 'QUEUED'" class="queue-overlay">
+  等待对局结束...
+  <div class="game-progress">Pot: {{ potSize }} | Phase: {{ gamePhase }}</div>
+</div>
+<!-- QUEUED players do NOT see PokerTable — no seat, no hole cards -->
+```
+
+### 6.5 RoomView.vue — Queue Prompt Modal (New)
 ```
 Hand complete → backend sends "queue_prompt" to QUEUED players:
   Modal: "是否加入下一局？" [加入] [观战]
   Timeout 10s → auto-join
 ```
 
-### 6.5 New Store Fields
+### 6.6 New Store Fields
 ```ts
 // room.ts additions:
 const queueLength = ref(0)      // number of queued players
@@ -395,16 +477,38 @@ const playerStatus = ref('ACTIVE') // my status
 | Scenario | Behavior |
 |----------|----------|
 | Non-owner clicks "解散" | Button not shown. Backend rejects if somehow sent. |
-| Player leaves then reconnects within 60s (same playerId) | `PlayerStatus.LEFT → ACTIVE` (if seat exists and WAITING). If PLAYING → QUEUED. |
+| Player explicitly leaves then rejoins within 60s (same playerId) | Key-lookup fails — player was removed from `room.players`. Fresh join required (new seat). |
+| Player disconnects then reconnects within 60s grace (same playerId) | `DISCONNECTED → ACTIVE` if WAITING; `DISCONNECTED → QUEUED` if PLAYING. Seat preserved. |
 | All humans left, only bots remain | Room dissolves (bots don't count as humans) |
-| Disconnect during PLAYING (not leave) | Auto-fold on timeout + keep in room. If reconnect before hand ends → continue. |
-| Room dissolved while spectating | Browser shows "房间已解散" toast → redirect to / |
+| Implicit disconnect during PLAYING (not leave) | Auto-fold on timeout + keep in room 60s grace. If reconnect before 60s → continue from QUEUED or ACTIVE. |
+| Room dissolved while spectating | `room_dissolved` message → toast "房间已解散" → redirect to / |
 
 ---
 
 ## 9. Known Bugs from Code Review (2026-06-20)
 
-These were discovered during a thorough review of all recently modified files. They are NOT part of this lifecycle design — they are pre-existing issues that should be fixed before or alongside lifecycle changes.
+These were discovered during a thorough review of all recently modified files. They are NOT part of this lifecycle design — they are pre-existing issues.
+
+### Bug Fix Sequencing for This Lifecycle
+
+Bugs that MUST be fixed before or alongside the lifecycle implementation (blockers):
+
+| Bug | Problem | Why Blocker |
+|-----|---------|-------------|
+| C2 (TOCTOU) | `applyAction` read-check-write not atomic | Leave auto-fold and mid-game join both depend on atomic state operations |
+| C3 (autoPlayBots race) | Bot auto-play races with human actions via C2 | Leave auto-fold and bot auto-play compete for same lock |
+| M2 (unsynchronized ArrayList) | `room.players` is `ArrayList` read across threads | Every lifecycle operation reads/writes `room.players` — any race here corrupts player lists |
+
+Bugs STRONGLY RECOMMENDED before lifecycle (can work around, but risky):
+
+| Bug | Problem | Why Recommended |
+|-----|---------|-----------------|
+| C4 (stale allIn) | Showdown winners keep `allIn=true` | QUEUED→ACTIVE seating depends on correct player state; stale flags could block hand start |
+| H1 (BB phantom) | `currentBet` over-calculated when BB is short-stacked | Causes betting-phase anomalies that lifecycle's auto-fold/disconnect flows could encounter |
+
+Bugs that can be fixed AFTER lifecycle (independent concerns):
+
+C1, H2, H3, H4, H5, M1, M3–M14 — These affect gameplay logic, frontend UI, or performance in ways that don't interact with the lifecycle's join/leave/disconnect flows.
 
 ### CRITICAL (4 issues)
 

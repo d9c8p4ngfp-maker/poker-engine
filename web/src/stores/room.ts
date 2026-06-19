@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
 export interface PlayerView {
   playerId: string
@@ -52,13 +52,6 @@ export const useRoomStore = defineStore('room', () => {
   const winners = ref<{ playerId: string; handName: string; amount: number }[] | null>(null)
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
 
-  const isMyTurn = computed(() => {
-    const idx = currentPlayerIndex.value
-    if (idx < 0 || idx >= players.value.length) return false
-    // Will be set properly when we have playerId context
-    return false
-  })
-
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {
     roomId.value = snapshot.roomId
     roomName.value = snapshot.name
@@ -105,7 +98,7 @@ export const useRoomStore = defineStore('room', () => {
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
     currentBet, currentPlayerIndex, bettingRound, smallBlind, bigBlind,
-    dealerIndex, timeLeftSec, myHoleCards, winners, messages, isMyTurn,
+    dealerIndex, timeLeftSec, myHoleCards, winners, messages,
     updateFromSnapshot, addSystemMessage, reset,
   }
 })

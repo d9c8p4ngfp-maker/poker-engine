@@ -21,7 +21,8 @@ class GameMessageControllerTest {
         var timeout = mock(GameTimeoutScheduler.class);
         var disconnect = mock(GameDisconnectHandler.class);
         var registry = mock(RoomRegistry.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
+        var helper = mock(GameBroadcastHelper.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry, helper);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));
@@ -55,7 +56,8 @@ class GameMessageControllerTest {
         var timeout = mock(GameTimeoutScheduler.class);
         var disconnect = mock(GameDisconnectHandler.class);
         var registry = mock(RoomRegistry.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
+        var helper = mock(GameBroadcastHelper.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry, helper);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));
@@ -83,7 +85,8 @@ class GameMessageControllerTest {
         var timeout = mock(GameTimeoutScheduler.class);
         var disconnect = mock(GameDisconnectHandler.class);
         var registry = mock(RoomRegistry.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
+        var helper = mock(GameBroadcastHelper.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry, helper);
 
         // Make executeWithLock actually run the task synchronously (as in production)
         doAnswer(invocation -> {

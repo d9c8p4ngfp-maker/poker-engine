@@ -259,11 +259,6 @@ Backend (RoomController / RoomService):
   case DISSOLVED (room not in registry):
     404 — room doesn't exist.
 ```
-    → 403 "Match concluded"
-
-  case DISSOLVED:
-    → 404 "Room not found"
-```
 
 ### 4.3 Mid-Game Join Seating (After PLAYING → WAITING Transition)
 
@@ -342,9 +337,11 @@ private Player owner;          // explicit owner reference (not index-based)
 ### 5.2 New Player Fields
 ```java
 // Player.java additions:
-private boolean owner;           // true for room's owner
-private PlayerStatus status;     // ACTIVE | SPECTATING | QUEUED | LEFT
+private boolean owner;           // true for room's owner (denormalized — same value as Room.owner.playerId == this.playerId)
+private PlayerStatus status;     // ACTIVE | SPECTATING | QUEUED | LEFT | DISCONNECTED
 ```
+
+**Double `owner` field explanation:** `Room.owner` holds a reference (O(1) lookup). `Player.owner` is a denormalized boolean (O(1) check in UI/loops). Both are set together on create/transfer; `Room.owner` is authoritative, `Player.owner` is a cache.
 
 ### 5.3 New Endpoints (STOMP only)
 

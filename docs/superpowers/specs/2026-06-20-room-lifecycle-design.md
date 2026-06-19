@@ -402,6 +402,63 @@ const playerStatus = ref('ACTIVE') // my status
 
 ---
 
+## 9. Known Bugs from Code Review (2026-06-20)
+
+These were discovered during a thorough review of all recently modified files. They are NOT part of this lifecycle design — they are pre-existing issues that should be fixed before or alongside lifecycle changes.
+
+### CRITICAL (4 issues)
+
+| # | File:Line | Description |
+|---|-----------|-------------|
+| C1 | `GameEngine.java:32-34` | **Cap-before-validate breaks RAISE.** The chip cap applied before `ActionValidator.validate()` can reduce a RAISE below minimum, but the validator silently passes it as an all-in raise. `BettingRoundManager` then sets `currentBet` to the capped value which may be **lower** than before, breaking betting invariants and causing hands to freeze. Fix: validate original amount first, cap only for chip deduction. |
+| C2 | `GameSessionService.java:38-52` | **`applyAction` read-check-write is not atomic.** Two threads can both read the same GameState, both validate, both compute new states, and the later `put()` silently overwrites the earlier one. |
+| C3 | `GameMessageController.java:68-86` + `RoomController.java:131-153` | **`autoPlayBots` races with human `processAction`.** C2's race condition manifests concretely: bot auto-play and human WebSocket messages can interleave on the same room's state. |
+| C4 | `GameEngine.java:133-143` | **Showdown winners retain stale `allIn=true`.** When an all-in player wins chips at showdown, their `chips` increase but `allIn` stays `true`. The next hand treats them as inactive. |
+
+### HIGH (5 issues)
+
+| # | File:Line | Description |
+|---|-----------|-------------|
+| H1 | `PhaseTransition.java:38-49` | **Initial `currentBet` uses full BB even when BB posts partial all-in.** If BB has < BB amount chips, `currentBet` is set to full BB (e.g. 20) but BB only contributed e.g. 15. Other players must call 20, creating a 5-chip phantom. |
+| H2 | `ActionValidator.java:23-25` | **`legalActions` excludes all-in BET under minRaise.** Frontend hides BET button, but backend allows it. |
+| H3 | `RoomView.vue:309-313` | **Auto-fold watch has no debounce guard.** If FOLD fails, the watch fires again, sending duplicate FOLD messages. No flag prevents re-entry. |
+| H4 | `RoomView.vue:339-340` | **Client leaderboard hardcodes borrow unit as 1000.** Server uses `room.getConfig().getInitialChips()`. If a room uses different initial chips, client and server disagree on netChips. |
+| H5 | `GameEngine.java:88-159` | **Showdown debug logging is unbuffered.** 15+ `System.err.println` + `flush()` calls fire on EVERY showdown. Should use conditional SLF4J. |
+
+### MEDIUM (14 issues — summary, full table in review transcript)
+
+| # | Summary |
+|---|---------|
+| M1 | `BettingRoundManager.isRoundComplete` returns true when no active players — functionally correct but undocumented |
+| M2 | `Room.players` is unsynchronized `ArrayList` accessed from WebSocket, HTTP, and disconnect threads |
+| M3 | `Player.borrow()` increments `borrowCount` by 1 regardless of custom borrow amount |
+| M4 | `RoomController.startGame` blocks HTTP response on `autoBots` loop (up to 30 turns) |
+| M5 | Game subscription handler can clear `winners` prematurely between winner broadcast and next-hand button press |
+| M6 | `ActionValidator.validate()` and `legalActions()` have divergent logic — should share single truth source |
+| M7 | `PhaseTransition.firstActiveAfter` fallback can return inactive player |
+| M8 | `BettingRoundManager.advanceToNextActive` returns unchanged state when stuck, caller must safeguard |
+| M9 | `checkGameOver` called after `endGame` — session already removed, relies on UI to restart |
+| M10 | Frontend forces `allIn=false` for chips≤0, conflating "busted between hands" with "all-in during hand" |
+| M11 | Sole survivor pot calculation streams players list 3 times |
+| M12 | Auto-slider resets betAmount on any canBet/canRaise change, can show value exceeding chips |
+| M13 | `autoPlayBots`, `checkGameOver`, `broadcastGameOver`, `broadcastBustChoice` are copy-pasted between `GameMessageController` and `RoomController` |
+| M14 | `user.ts:21` — module-level `localStorage.setItem` side effect in store definition |
+
+### LOW (8 issues — summary)
+
+| # | Summary |
+|---|---------|
+| L1 | `Player.placeBet()` appears to be dead code — engine uses `GamePlayerState.withChipsDeducted()` |
+| L2 | `timeLeftSec \|\| 30` fallback never activates — server hardcodes 30 |
+| L3 | `bettingRound` ref typed as `string` instead of union type |
+| L4 | `(snapshot as any).minRaise` — field missing from `RoomSnapshot` interface |
+| L5 | `GamePhase.HAND_OVER` exists in enum but is never returned by any method |
+| L6 | `PhaseTransition.advancePhase` default case returns unchanged state — should throw defensively |
+| L7 | `BroadcastService.sendToRoom` single-arg overload sends to wrong destination for game data |
+| L8 | `RoomConfig.setSmallBlind()` auto-sets bigBlind to 2x, no reciprocal validation on direct bigBlind set |
+
+---
+
 ## Self-Review Checklist (after writing)
 
 - [x] No placeholder/TODO in body

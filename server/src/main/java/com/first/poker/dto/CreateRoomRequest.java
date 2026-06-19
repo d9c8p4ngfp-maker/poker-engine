@@ -4,8 +4,11 @@ import lombok.Data;
 
 @Data
 public class CreateRoomRequest {
-    private String name = "默认牌局";
+    private String roomName;
+    private String name;
     private String password;
+    private String ownerId;
+    private String ownerNickname;
     private Integer maxSeats;
     private Integer minPlayers;
     private Integer initialChips;

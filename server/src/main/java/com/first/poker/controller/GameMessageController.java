@@ -64,6 +64,7 @@ public class GameMessageController {
         // Handle hand complete
         if (result.handComplete()) {
             timeoutScheduler.cancelTimeout(roomId);
+            gameSession.endGame(roomId);
             if (!result.winners().isEmpty()) {
                 broadcastWinners(roomId, result);
             }

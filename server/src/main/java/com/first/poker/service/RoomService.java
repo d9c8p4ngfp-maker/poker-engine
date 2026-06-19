@@ -18,7 +18,17 @@ public class RoomService {
     public Room createRoom(CreateRoomRequest req) {
         RoomConfig config = RoomConfig.withDefaults();
         applyConfig(config, req);
-        return registry.createRoom(req.getName(), config);
+        String roomName = req.getRoomName() != null ? req.getRoomName()
+            : (req.getName() != null ? req.getName() : "默认牌局");
+        Room room = registry.createRoom(roomName, config);
+
+        // Auto-add owner as first player
+        if (req.getOwnerId() != null) {
+            String nickname = req.getOwnerNickname() != null ? req.getOwnerNickname() : req.getOwnerId();
+            Player owner = new Player(req.getOwnerId(), nickname, 0, config.getInitialChips());
+            room.addPlayer(owner);
+        }
+        return room;
     }
 
     public Room joinRoom(String roomId, JoinRoomRequest req) {

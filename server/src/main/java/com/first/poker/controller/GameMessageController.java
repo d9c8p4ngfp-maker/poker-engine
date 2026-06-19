@@ -76,6 +76,11 @@ public class GameMessageController {
             GameAction action = GameAction.valueOf(req.getAction().toUpperCase());
             var result = gameSession.applyAction(roomId, req.getPlayerId(), action, req.getAmount());
 
+            // Reset inactivity timer — any game action counts as activity
+            // room is guaranteed to exist after applyAction succeeds (session exists => room exists)
+            var room = roomService.findRoom(roomId);
+            if (room != null) room.setLastActivity(System.currentTimeMillis());
+
             var state = result.state();
             System.out.println("[ACTION-RESULT] " + roomId + " curPlayer=" + state.currentPlayer().playerId() + " phase=" + state.phase() + " handComplete=" + result.handComplete());
             broadcastGameState(roomId, state);

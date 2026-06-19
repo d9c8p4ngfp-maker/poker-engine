@@ -77,6 +77,8 @@ public class GameDisconnectHandler {
                     p.setConnected(false);
                 });
 
+            room.setLastActivity(System.currentTimeMillis());
+
             boolean isPlaying = gameSession.hasActiveSession(fRoomId);
 
             // Auto-fold if it's the player's turn
@@ -143,6 +145,7 @@ public class GameDisconnectHandler {
                             p.setStatus(PlayerStatus.ACTIVE);
                             p.setConnected(true);
                         });
+                    room.setLastActivity(System.currentTimeMillis());
                 }
             });
         }

@@ -95,6 +95,7 @@ public class RoomController {
         if (room == null || room.getOwner() == null) return ResponseEntity.notFound().build();
         String ownerId = room.getOwner().getPlayerId();
         var state = gameSessionService.startGame(room, ownerId);
+        room.setLastActivity(System.currentTimeMillis());
         helper.broadcastGameState(roomId, state);
         // Auto-play bot turns
         helper.autoPlayBots(roomId);
@@ -127,6 +128,7 @@ public class RoomController {
                 .findFirst().orElse(null);
             if (player == null) return;
             player.borrow(borrowAmount[0]);
+            room.setLastActivity(System.currentTimeMillis());
             System.out.println("[BORROW] " + roomId + " " + playerId
                 + " borrowed #" + player.getBorrowCount()
                 + " amount=" + borrowAmount[0] + ", chips=" + player.getChips());

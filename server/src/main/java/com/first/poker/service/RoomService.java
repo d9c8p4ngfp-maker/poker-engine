@@ -5,6 +5,7 @@ import com.first.poker.dto.JoinRoomRequest;
 import com.first.poker.model.Player;
 import com.first.poker.model.Room;
 import com.first.poker.model.RoomConfig;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,10 +14,13 @@ import java.util.List;
 public class RoomService {
     private final RoomRegistry registry;
     private final GameSessionService gameSessionService;
+    private final GameDisconnectHandler disconnectHandler;
 
-    public RoomService(RoomRegistry registry, GameSessionService gameSessionService) {
+    public RoomService(RoomRegistry registry, GameSessionService gameSessionService,
+                        @Lazy GameDisconnectHandler disconnectHandler) {
         this.registry = registry;
         this.gameSessionService = gameSessionService;
+        this.disconnectHandler = disconnectHandler;
     }
 
     public Room createRoom(CreateRoomRequest req) {
@@ -33,6 +37,7 @@ public class RoomService {
             owner.setOwner(true);
             room.addPlayer(owner);
             room.setOwner(owner);
+            disconnectHandler.registerPlayer(room.getRoomId(), req.getOwnerId());
         }
         return room;
     }
@@ -40,6 +45,22 @@ public class RoomService {
     public Room joinRoom(String roomId, JoinRoomRequest req) {
         Room room = registry.findById(roomId);
         if (room == null) return null;
+
+        // === Reconnect detection ===
+        // If player is already in room (disconnected earlier), this is a reconnect, not a new join.
+        // State restoration is delegated to disconnectHandler.onReconnect()
+        // which performs it inside executeWithLock — avoiding concurrency
+        // conflicts with syncRoomChips / onSessionDisconnect.
+        var existing = room.getPlayers().stream()
+            .filter(p -> p.getPlayerId().equals(req.getPlayerId()))
+            .findFirst().orElse(null);
+        if (existing != null) {
+            disconnectHandler.onReconnect(req.getPlayerId());
+            disconnectHandler.registerPlayer(roomId, req.getPlayerId());
+            System.out.println("[RECONNECT] " + req.getPlayerId() + " rejoined room " + roomId);
+            return room;
+        }
+        // === End reconnect detection ===
 
         boolean isPlaying = gameSessionService.hasActiveSession(roomId);
 
@@ -49,6 +70,7 @@ public class RoomService {
                     -1, room.getConfig().getInitialChips());
             player.setStatus(com.first.poker.model.enums.PlayerStatus.QUEUED);
             if (!room.addPlayer(player)) return null;
+            room.setLastActivity(System.currentTimeMillis());
             return room;
         }
 
@@ -57,6 +79,7 @@ public class RoomService {
                 -1, room.getConfig().getInitialChips());
         player.setStatus(com.first.poker.model.enums.PlayerStatus.ACTIVE);
         if (!room.addPlayer(player)) return null;
+        room.setLastActivity(System.currentTimeMillis());
         return room;
     }
 

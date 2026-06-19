@@ -93,8 +93,8 @@ public class RoomController {
     @PostMapping("/{roomId}/start")
     public ResponseEntity<?> startGame(@PathVariable String roomId) {
         var room = roomService.findRoom(roomId);
-        if (room == null || room.getPlayers().isEmpty()) return ResponseEntity.notFound().build();
-        String ownerId = room.getPlayers().get(0).getPlayerId();
+        if (room == null || room.getOwner() == null) return ResponseEntity.notFound().build();
+        String ownerId = room.getOwner().getPlayerId();
         var state = gameSessionService.startGame(room, ownerId);
         // Broadcast to all subscribers
         broadcastService.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state));

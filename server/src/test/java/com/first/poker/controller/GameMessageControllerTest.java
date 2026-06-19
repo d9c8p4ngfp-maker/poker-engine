@@ -20,7 +20,8 @@ class GameMessageControllerTest {
         var broadcast = mock(BroadcastService.class);
         var timeout = mock(GameTimeoutScheduler.class);
         var disconnect = mock(GameDisconnectHandler.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect);
+        var registry = mock(RoomRegistry.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));
@@ -53,7 +54,8 @@ class GameMessageControllerTest {
         var broadcast = mock(BroadcastService.class);
         var timeout = mock(GameTimeoutScheduler.class);
         var disconnect = mock(GameDisconnectHandler.class);
-        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect);
+        var registry = mock(RoomRegistry.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry);
 
         var room = new Room("R1", "test", RoomConfig.withDefaults());
         room.addPlayer(new Player("A", "Alice", 0, 1000));

@@ -18,6 +18,11 @@ class GameSessionServiceTest {
         var config = RoomConfig.withDefaults();
         var room = new Room(roomId, "test", config);
         players.forEach(room::addPlayer);
+        // Set first player as owner (matching createRoom behavior)
+        if (!players.isEmpty()) {
+            players.get(0).setOwner(true);
+            room.setOwner(players.get(0));
+        }
         return room;
     }
 

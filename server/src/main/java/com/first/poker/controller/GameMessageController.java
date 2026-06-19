@@ -6,10 +6,13 @@ import com.first.poker.dto.GameActionRequest;
 import com.first.poker.engine.GameAction;
 import com.first.poker.engine.GameEngine;
 import com.first.poker.engine.GameStateSnapshot;
+import com.first.poker.model.Room;
+import com.first.poker.model.Player;
 import com.first.poker.service.BroadcastService;
 import com.first.poker.service.GameDisconnectHandler;
 import com.first.poker.service.GameSessionService;
 import com.first.poker.service.GameTimeoutScheduler;
+import com.first.poker.service.RoomRegistry;
 import com.first.poker.service.RoomService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -24,15 +27,17 @@ public class GameMessageController {
     private final BroadcastService broadcast;
     private final GameTimeoutScheduler timeoutScheduler;
     private final GameDisconnectHandler disconnectHandler;
+    private final RoomRegistry registry;
 
     public GameMessageController(RoomService roomService, GameSessionService gameSession,
                                   BroadcastService broadcast, GameTimeoutScheduler timeoutScheduler,
-                                  GameDisconnectHandler disconnectHandler) {
+                                  GameDisconnectHandler disconnectHandler, RoomRegistry registry) {
         this.roomService = roomService;
         this.gameSession = gameSession;
         this.broadcast = broadcast;
         this.timeoutScheduler = timeoutScheduler;
         this.disconnectHandler = disconnectHandler;
+        this.registry = registry;
     }
 
     @MessageMapping("/game/{roomId}/start")
@@ -95,6 +100,101 @@ public class GameMessageController {
             // Try to auto-play bots in case the game should continue
             autoPlayBots(roomId);
         }
+    }
+
+    @MessageMapping("/room/{roomId}/leave")
+    public void handleLeave(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
+        String playerId = (String) body.get("playerId");
+        System.out.println("[LEAVE] " + roomId + " player=" + playerId);
+        var room = roomService.findRoom(roomId);
+        if (room == null) return;
+
+        boolean wasOwner = room.getPlayers().stream()
+            .anyMatch(p -> p.getPlayerId().equals(playerId) && p.isOwner());
+        boolean isPlaying = gameSession.hasActiveSession(roomId);
+
+        // Auto-fold if game is in progress
+        if (isPlaying) {
+            try {
+                gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
+            } catch (Exception e) {
+                System.out.println("[LEAVE-FOLD] " + playerId + " fold failed (may not be their turn): " + e.getMessage());
+            }
+        }
+
+        roomService.leaveRoom(roomId, playerId);
+        room.setLastActivity(System.currentTimeMillis());
+
+        String newOwnerId = null;
+        if (wasOwner) {
+            if (roomService.hasHumanPlayers(roomId)) {
+                Player newOwner = roomService.transferOwnership(room, playerId);
+                newOwnerId = newOwner != null ? newOwner.getPlayerId() : null;
+            } else {
+                // No human players left — dissolve room
+                System.out.println("[DISSOLVE] " + roomId + " all humans left");
+                var dissolvePayload = new java.util.HashMap<String, Object>();
+                dissolvePayload.put("type", "room_dissolved");
+                dissolvePayload.put("roomId", roomId);
+                broadcast.sendToRoom(roomId, dissolvePayload);
+                gameSession.endGame(roomId);
+                registry.removeRoom(roomId);
+                return;
+            }
+        }
+
+        var leavePayload = new java.util.HashMap<String, Object>();
+        leavePayload.put("type", "player_left");
+        leavePayload.put("playerId", playerId);
+        if (newOwnerId != null) {
+            leavePayload.put("newOwnerId", newOwnerId);
+        }
+        broadcast.sendToRoom(roomId, leavePayload);
+        broadcast.sendToRoom(roomId, "room", roomToResponse(room));
+    }
+
+    @MessageMapping("/room/{roomId}/dissolve")
+    public void handleDissolve(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
+        String playerId = (String) body.get("playerId");
+        System.out.println("[DISSOLVE] " + roomId + " requested by " + playerId);
+        var room = roomService.findRoom(roomId);
+        if (room == null) return;
+
+        // Verify owner
+        if (room.getOwner() == null || !room.getOwner().getPlayerId().equals(playerId)) {
+            var err = new java.util.HashMap<String, Object>();
+            err.put("error", "Only room owner can dissolve");
+            broadcast.sendToPlayer(playerId, err);
+            return;
+        }
+
+        var dissolvePayload = new java.util.HashMap<String, Object>();
+        dissolvePayload.put("type", "room_dissolved");
+        dissolvePayload.put("roomId", roomId);
+        broadcast.sendToRoom(roomId, dissolvePayload);
+        gameSession.endGame(roomId);
+        registry.removeRoom(roomId);
+    }
+
+    private java.util.Map<String, Object> roomToResponse(Room room) {
+        return java.util.Map.of(
+            "roomId", room.getRoomId(),
+            "name", room.getName(),
+            "status", room.getStatus().name(),
+            "players", room.getPlayers().stream().map(p -> java.util.Map.of(
+                "playerId", p.getPlayerId(),
+                "nickname", p.getNickname(),
+                "seatIndex", p.getSeatIndex(),
+                "chips", p.getChips(),
+                "borrowCount", p.getBorrowCount(),
+                "connected", p.isConnected(),
+                "owner", p.isOwner()
+            )).toList(),
+            "smallBlind", room.getConfig().getSmallBlind(),
+            "bigBlind", room.getConfig().getBigBlind(),
+            "maxSeats", room.getConfig().getMaxSeats(),
+            "dealerIndex", room.getDealerIndex()
+        );
     }
 
     /**

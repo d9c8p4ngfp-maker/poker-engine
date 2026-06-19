@@ -13,7 +13,10 @@ class GameIntegrationTest {
     @Test
     void shouldPlayFullHandToShowdown() {
         var room = new Room("RX", "test", RoomConfig.withDefaults());
-        room.addPlayer(new Player("A", "Alice", 0, 1000));
+        var pA = new Player("A", "Alice", 0, 1000);
+        pA.setOwner(true);
+        room.addPlayer(pA);
+        room.setOwner(pA);
         room.addPlayer(new Player("B", "Bob", 1, 1000));
         room.addPlayer(new Player("C", "Charlie", 2, 1000));
 

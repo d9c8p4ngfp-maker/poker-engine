@@ -68,6 +68,40 @@ public class RoomService {
         return bots;
     }
 
+    public boolean leaveRoom(String roomId, String playerId) {
+        Room room = registry.findById(roomId);
+        if (room == null) return false;
+        return room.removePlayer(playerId);
+    }
+
+    public Player transferOwnership(Room room, String leavingPlayerId) {
+        // Find next human ACTIVE player, fall back to QUEUED
+        Player newOwner = room.getPlayers().stream()
+            .filter(p -> !p.getPlayerId().startsWith("bot-"))
+            .filter(p -> !p.getPlayerId().equals(leavingPlayerId))
+            .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE
+                      || p.getStatus() == com.first.poker.model.enums.PlayerStatus.QUEUED)
+            .findFirst().orElse(null);
+
+        if (newOwner != null) {
+            // Clear old owner flag
+            room.getPlayers().stream()
+                .filter(Player::isOwner)
+                .findFirst().ifPresent(o -> o.setOwner(false));
+            newOwner.setOwner(true);
+            room.setOwner(newOwner);
+        } else {
+            room.setOwner(null);
+        }
+        return newOwner;
+    }
+
+    public boolean hasHumanPlayers(String roomId) {
+        Room room = registry.findById(roomId);
+        if (room == null) return false;
+        return room.getPlayers().stream().anyMatch(p -> !p.getPlayerId().startsWith("bot-"));
+    }
+
     private void applyConfig(RoomConfig config, CreateRoomRequest req) {
         if (req.getMaxSeats() != null) config.setMaxSeats(req.getMaxSeats());
         if (req.getMinPlayers() != null) config.setMinPlayers(req.getMinPlayers());

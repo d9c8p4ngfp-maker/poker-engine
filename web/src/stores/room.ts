@@ -13,6 +13,7 @@ export interface PlayerView {
   lastAction: string | null
   connected: boolean
   borrowCount?: number
+  owner?: boolean
 }
 
 export interface RoomSnapshot {

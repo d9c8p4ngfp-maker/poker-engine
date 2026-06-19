@@ -24,7 +24,7 @@ public class GameSessionService {
         lock.lock();
         try {
             // Only owner can start
-            if (room.getPlayers().isEmpty() || !room.getPlayers().get(0).getPlayerId().equals(requesterId)) {
+            if (room.getOwner() == null || !room.getOwner().getPlayerId().equals(requesterId)) {
                 throw new IllegalArgumentException("Only room owner can start the game");
             }
 

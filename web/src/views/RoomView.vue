@@ -50,6 +50,35 @@ onMounted(async () => {
 
   subscribe(`/topic/room/${roomId}`, (msg) => {
     const data = JSON.parse(msg.body)
+
+    if (data.type === 'room_dissolved') {
+      alert('房间已解散')
+      disconnect()
+      roomStore.reset()
+      router.push('/')
+      return
+    }
+
+    if (data.type === 'player_left') {
+      roomStore.players = roomStore.players.filter(p => p.playerId !== data.playerId)
+      if (data.newOwnerId && data.newOwnerId === userStore.playerId) {
+        alert('你已成为新房主')
+        refreshRoom()
+      }
+      return
+    }
+
+    if (data.type === 'player_joined') {
+      refreshRoom()
+      return
+    }
+
+    if (data.type === 'player_disconnected') {
+      const p = roomStore.players.find(p => p.playerId === data.playerId)
+      if (p) p.connected = false
+      return
+    }
+
     if (data.type === 'system') {
       roomStore.addSystemMessage(data.text)
     } else if (data.roomId) {
@@ -61,6 +90,7 @@ onMounted(async () => {
         chips: p.chips, betInRound: 0, folded: false, allIn: false,
         holeCards: null, lastAction: null, connected: p.connected,
         borrowCount: p.borrowCount || 0,
+        owner: p.owner || false,
       }))
       roomStore.smallBlind = data.smallBlind || 10
       roomStore.bigBlind = data.bigBlind || 20
@@ -158,8 +188,7 @@ const myPlayer = computed(() => {
 })
 
 const isOwner = computed(() => {
-  if (roomStore.players.length === 0) return false
-  return roomStore.players[0].playerId === userStore.playerId
+  return roomStore.players.some(p => p.owner && p.playerId === userStore.playerId)
 })
 
 const canStart = computed(() => {
@@ -260,6 +289,7 @@ async function refreshRoom() {
         chips: p.chips, betInRound: 0, folded: false, allIn: false,
         holeCards: null, lastAction: null, connected: p.connected,
         borrowCount: p.borrowCount || 0,
+        owner: p.owner || false,
       }))
       roomStore.smallBlind = data.smallBlind
       roomStore.bigBlind = data.bigBlind
@@ -292,6 +322,9 @@ async function handleAddBot() {
 }
 
 function handleLeave() {
+  send(`/app/room/${roomId}/leave`, { playerId: userStore.playerId })
+  disconnect()
+  roomStore.reset()
   router.push('/')
 }
 

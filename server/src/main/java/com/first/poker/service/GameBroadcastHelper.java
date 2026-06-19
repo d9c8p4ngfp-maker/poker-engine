@@ -157,6 +157,11 @@ public class GameBroadcastHelper {
                     }
                     return;
                 }
+            } catch (IllegalArgumentException e) {
+                // Not our turn anymore — another thread processed this bot's turn
+                // This is expected in the lock-check pattern
+                System.out.println("[autoPlayBot] " + cp.playerId() + " turn already processed, continuing");
+                continue;
             } catch (Throwable e) {
                 System.err.println("[autoPlayBot] " + cp.playerId() + ": " + e.getClass().getName() + " - " + e.getMessage());
                 continue;

@@ -40,8 +40,22 @@ public class RoomService {
     public Room joinRoom(String roomId, JoinRoomRequest req) {
         Room room = registry.findById(roomId);
         if (room == null) return null;
+
+        boolean isPlaying = gameSessionService.hasActiveSession(roomId);
+
+        if (isPlaying) {
+            // Mid-game join: add as QUEUED
+            Player player = new Player(req.getPlayerId(), req.getNickname(),
+                    -1, room.getConfig().getInitialChips());
+            player.setStatus(com.first.poker.model.enums.PlayerStatus.QUEUED);
+            if (!room.addPlayer(player)) return null;
+            return room;
+        }
+
+        // WAITING: add as ACTIVE
         Player player = new Player(req.getPlayerId(), req.getNickname(),
                 room.getPlayers().size(), room.getConfig().getInitialChips());
+        player.setStatus(com.first.poker.model.enums.PlayerStatus.ACTIVE);
         if (!room.addPlayer(player)) return null;
         return room;
     }
@@ -100,6 +114,34 @@ public class RoomService {
         Room room = registry.findById(roomId);
         if (room == null) return false;
         return room.getPlayers().stream().anyMatch(p -> !p.getPlayerId().startsWith("bot-"));
+    }
+
+    public void seatQueuedPlayers(String roomId, BroadcastService broadcast) {
+        Room room = registry.findById(roomId);
+        if (room == null) return;
+
+        // Count occupied seats
+        int activeCount = (int) room.getPlayers().stream()
+            .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE)
+            .count();
+        int maxSeats = room.getConfig().getMaxSeats();
+
+        for (var p : room.getPlayers()) {
+            if (p.getStatus() != com.first.poker.model.enums.PlayerStatus.QUEUED) continue;
+            if (activeCount >= maxSeats) break;
+
+            // Send queue_prompt to the player
+            var prompt = new java.util.HashMap<String, Object>();
+            prompt.put("type", "queue_prompt");
+            prompt.put("roomId", roomId);
+            prompt.put("timeoutSec", 10);
+            broadcast.sendToPlayer(p.getPlayerId(), prompt);
+
+            // Auto-accept after 10s (player can also click to accept immediately)
+            // The actual accept will come via a STOMP message from the frontend
+            // For now, we just auto-seat them on next game start
+            // This is handled by the GameSessionService which filters by ACTIVE status
+        }
     }
 
     private void applyConfig(RoomConfig config, CreateRoomRequest req) {

@@ -102,6 +102,39 @@ public class GameMessageController {
         }
     }
 
+    @MessageMapping("/room/{roomId}/queue-accept")
+    public void handleQueueAccept(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
+        String playerId = (String) body.get("playerId");
+        System.out.println("[QUEUE-ACCEPT] " + roomId + " player=" + playerId);
+        var room = roomService.findRoom(roomId);
+        if (room == null) return;
+
+        room.getPlayers().stream()
+            .filter(p -> p.getPlayerId().equals(playerId)
+                      && p.getStatus() == com.first.poker.model.enums.PlayerStatus.QUEUED)
+            .findFirst()
+            .ifPresent(p -> {
+                p.setStatus(com.first.poker.model.enums.PlayerStatus.ACTIVE);
+                p.setChips(room.getConfig().getInitialChips());
+                // Assign seat
+                int maxSeats = room.getConfig().getMaxSeats();
+                boolean[] occupied = new boolean[maxSeats];
+                for (var rp : room.getPlayers()) {
+                    if (rp.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE
+                        && rp.getSeatIndex() >= 0 && rp.getSeatIndex() < maxSeats) {
+                        occupied[rp.getSeatIndex()] = true;
+                    }
+                }
+                for (int i = 0; i < maxSeats; i++) {
+                    if (!occupied[i]) {
+                        p.setSeatIndex(i);
+                        break;
+                    }
+                }
+                broadcast.sendToRoom(roomId, "room", roomToResponse(room));
+            });
+    }
+
     @MessageMapping("/room/{roomId}/leave")
     public void handleLeave(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
         String playerId = (String) body.get("playerId");

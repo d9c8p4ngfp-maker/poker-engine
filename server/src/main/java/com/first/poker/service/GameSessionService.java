@@ -3,9 +3,11 @@ package com.first.poker.service;
 import com.first.poker.engine.*;
 import com.first.poker.model.Player;
 import com.first.poker.model.Room;
+import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Service
 public class GameSessionService {
 
     private final ConcurrentHashMap<String, GameState> sessions = new ConcurrentHashMap<>();

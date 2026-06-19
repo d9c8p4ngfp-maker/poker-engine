@@ -30,6 +30,10 @@ public class RoomService {
         return room;
     }
 
+    public Room findRoom(String roomId) {
+        return registry.findById(roomId);
+    }
+
     private void applyConfig(RoomConfig config, CreateRoomRequest req) {
         if (req.getMaxSeats() != null) config.setMaxSeats(req.getMaxSeats());
         if (req.getMinPlayers() != null) config.setMinPlayers(req.getMinPlayers());

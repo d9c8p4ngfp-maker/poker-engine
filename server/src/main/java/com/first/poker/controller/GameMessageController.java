@@ -79,8 +79,8 @@ public class GameMessageController {
             if (result.handComplete()) {
                 System.out.println("[HAND-COMPLETE] " + roomId + " winners=" + result.winners());
                 timeoutScheduler.cancelTimeout(roomId);
-                syncRoomChips(roomId, result.state());
-                gameSession.endGame(roomId);
+                com.first.poker.engine.GameState finalState = result.state();
+                gameSession.endGame(roomId, () -> syncRoomChips(roomId, finalState));
                 if (checkGameOver(roomId, result)) return;
                 if (!result.winners().isEmpty()) {
                     broadcastWinners(roomId, result);
@@ -259,8 +259,8 @@ public class GameMessageController {
 
                 if (result.handComplete()) {
                     timeoutScheduler.cancelTimeout(roomId);
-                    syncRoomChips(roomId, result.state());
-                    gameSession.endGame(roomId);
+                    com.first.poker.engine.GameState finalState = result.state();
+                    gameSession.endGame(roomId, () -> syncRoomChips(roomId, finalState));
                     if (checkGameOver(roomId, result)) return;
                     if (!result.winners().isEmpty()) {
                         broadcastWinners(roomId, result);

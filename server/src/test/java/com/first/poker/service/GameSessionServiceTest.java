@@ -82,4 +82,36 @@ class GameSessionServiceTest {
         var service = new GameSessionService();
         assertThrows(IllegalArgumentException.class, () -> service.startGame(room, "B")); // B is not owner (index 0)
     }
+
+    @Test
+    void executeWithLock_shouldRunTaskUnderLock() {
+        var service = new GameSessionService();
+        var executed = new boolean[1];
+        service.executeWithLock("R1", () -> executed[0] = true);
+        assertTrue(executed[0]);
+    }
+
+    @Test
+    void executeWithLock_shouldBeReentrant() {
+        var service = new GameSessionService();
+        var executed = new boolean[1];
+        service.executeWithLock("R1", () -> {
+            service.executeWithLock("R1", () -> executed[0] = true);
+        });
+        assertTrue(executed[0]);
+    }
+
+    @Test
+    void endGame_shouldRunBeforeUnlockInsideLock() {
+        var room = makeRoom("R5", List.of(
+            new Player("A", "Alice", 0, 1000),
+            new Player("B", "Bob", 1, 1000)
+        ));
+        var service = new GameSessionService();
+        service.startGame(room, "A");
+        var taskRan = new boolean[1];
+        service.endGame("R5", () -> taskRan[0] = true);
+        assertTrue(taskRan[0]);
+        assertFalse(service.hasActiveSession("R5"));
+    }
 }

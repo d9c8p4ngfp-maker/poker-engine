@@ -43,19 +43,37 @@ int borrowCount;     // recent addition
 ```
 **No `owner` field exists.** Ownership is derived: `players.get(0)` is the room owner.
 
-### 1.4 Room Lifecycle (Current)
+### 1.4 Room Lifecycle (Current) and the "Status" Problem
 ```
-User POST /api/rooms         → createRoom → Room.status = WAITING
+User POST /api/rooms         → createRoom → Room.status = WAITING (CONSTRUCTOR ONLY — never modified again)
                                  ↓
-Other user POST /join         → joinRoom → adds Player to ArrayList
+Other user POST /join         → joinRoom → adds Player to ArrayList (no status check)
                                  ↓
-Owner POST /start or STOMP    → startGame → WAITING → PLAYING
-                                 ↓ Game plays...
-Hand ends                     → checkGameOver
-  ↓ (not bustEndsGame)          ↓ (bustEndsGame or all busted)
-  WAITING (new hand possible)   FINISHED (setGameOver broadcast)
+Owner POST /start or STOMP    → startGame → puts GameState into GameSessionService.sessions map
+                                 ↓ Game plays...                  Room.status is STILL "WAITING"
+Hand ends                     → checkGameOver → broadcasts game_over or winners
+                                 ↓                                Room.status is STILL "WAITING"
 ```
-**Key gap:** There is no "leave" flow. Player who closes tab just disconnects silently. `handleDisconnect` callback exists but is never wired to WebSocket disconnect events.
+
+**Critical fact:** `Room.status` is set to `WAITING` in the constructor and **never modified by any code path**. The game state is tracked independently by `GameSessionService.sessions` (a `ConcurrentHashMap<String, GameState>`). The frontend receives two different "status" values from two different WebSocket channels:
+
+| Channel | Source of "status" value | What it says |
+|---------|-------------------------|--------------|
+| `/topic/room/{roomId}` | `roomToResponse()` → `Room.getStatus().name()` | Always `"WAITING"` |
+| `/topic/room/{roomId}/game` | `GameStateSnapshot.buildPublic()` → `phase==SHOWDOWN ? "FINISHED" : "PLAYING"` | `"PLAYING"` or `"FINISHED"` |
+
+Frontend `roomStore.status` is first set from the room channel (WAITING), then overwritten by the game channel (PLAYING/FINISHED). This works today because messages arrive in order and overwrite.
+
+**Design decision — do NOT merge these two status sources into one.** Maintaining `Room.status` in sync with `GameSessionService.sessions` would require updating it in every code path (startGame, processAction, endGame, checkGameOver) across two controllers, creating a synchronization burden with no real benefit. Instead, this design uses `GameSessionService.sessions.containsKey(roomId)` as the single source of truth for "is a hand in progress".
+
+See §3.4 for the join guard implementation.
+
+**Key gaps in current code:**
+- There is no "leave" flow. Player who closes tab just disconnects silently.
+- `GameDisconnectHandler.handleDisconnect()` callback exists but is never wired to `SessionDisconnectEvent` — no `@EventListener` annotation anywhere.
+- `Room.handCount` is initialized to 0 and never incremented.
+- `Player.connected` is set to `true` in constructor and never updated.
+- `Player.lastAction` exists as a field but is never written.
 
 ### 1.5 WebSocket Channels (Current)
 ```
@@ -122,12 +140,43 @@ Dissolution conditions (any one triggers):
 4. **Inactivity timeout** — no game activity for 30 minutes → auto-dissolve
 
 ### 3.4 `joinRoom` Guard Enhancement
-Add status check to `RoomService.joinRoom()`:
+
+Add is-playing detection to `RoomService.joinRoom()`. Because `Room.status` is never updated (see §1.4), the guard uses `GameSessionService.sessions.containsKey(roomId)` — the authoritative source for "is a hand in progress":
+
+```java
+public Room joinRoom(String roomId, JoinRoomRequest req) {
+    Room room = registry.findById(roomId);
+    if (room == null) return null;
+
+    boolean isPlaying = gameSessionService.getState(roomId) != null;
+    // (If GameSessionService is not injected in RoomService, inject it,
+    //  or expose a boolean method: gameSessionService.isPlaying(roomId))
+
+    if (isPlaying) {
+        // Add as QUEUED — spectator view, no seat, join prompt after hand
+        Player player = new Player(req.getPlayerId(), req.getNickname(),
+                -1, room.getConfig().getInitialChips());
+        player.setStatus(PlayerStatus.QUEUED);
+        room.addPlayer(player);
+        return room;
+    }
+
+    // WAITING: add as ACTIVE (current behavior)
+    Player player = new Player(req.getPlayerId(), req.getNickname(),
+            room.getPlayers().size(), room.getConfig().getInitialChips());
+    player.setStatus(PlayerStatus.ACTIVE);
+    if (!room.addPlayer(player)) return null;
+    return room;
+}
 ```
-if PLAYING/DISSOLVED → add as QUEUED (spectator view, no seat)
-if FINISHED           → reject ("match concluded")
-if WAITING            → add as ACTIVE (current behavior)
-```
+
+| Room state (by sessions map) | Join behavior |
+|------------------------------|---------------|
+| No active session (WAITING) | Add as ACTIVE (current behavior) |
+| Active session (PLAYING) | Add as QUEUED (spectator view, no seat) |
+| Room dissolved | `findById` returns null → 404 |
+
+**Why not use `Room.status` for this check?** Because `Room.status` is only set in the constructor and never transitions to PLAYING/FINISHED. Maintaining it in sync with `GameSessionService.sessions` would require updates in two controllers across 5+ code paths, creating a synchronization burden with zero benefit over the simpler `sessions.containsKey()` check.
 
 ---
 

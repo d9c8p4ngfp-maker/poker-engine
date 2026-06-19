@@ -14,12 +14,12 @@ public class Player {
     private int betInRound;
     private boolean folded;
     private boolean allIn;
-    private boolean connected;
+    private volatile boolean connected;
     private String lastAction;
     private List<String> holeCards;
     private int borrowCount;
     private boolean owner;
-    private PlayerStatus status;
+    private volatile PlayerStatus status;
 
     public Player(String playerId, String nickname, int seatIndex, int initialChips) {
         this.playerId = playerId;

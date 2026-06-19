@@ -115,4 +115,30 @@ public class GameSessionService {
     public void endGame(String roomId) {
         endGame(roomId, null);
     }
+
+    /**
+     * End game and clean up the per-room lock. Use this only when the room
+     * is fully dissolving (removeRoom follows). For normal hand-complete
+     * endGame, use the plain endGame overload instead.
+     */
+    public void endGameAndCleanupLock(String roomId, Runnable beforeUnlock) {
+        ReentrantLock lock = roomLocks.get(roomId);
+        if (lock != null) {
+            lock.lock();
+            try {
+                if (beforeUnlock != null) {
+                    beforeUnlock.run();
+                }
+                sessions.remove(roomId);
+            } finally {
+                lock.unlock();
+            }
+            roomLocks.remove(roomId);
+        } else {
+            if (beforeUnlock != null) {
+                beforeUnlock.run();
+            }
+            sessions.remove(roomId);
+        }
+    }
 }

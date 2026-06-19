@@ -178,7 +178,7 @@ public class GameMessageController {
                     var dissolvePayload = new java.util.HashMap<String, Object>();
                     dissolvePayload.put("type", "room_dissolved");
                     dissolvePayload.put("roomId", roomId);
-                    gameSession.endGame(roomId);
+                    gameSession.endGameAndCleanupLock(roomId, null);
                     registry.removeRoom(roomId);
                     broadcast.sendToRoom(roomId, dissolvePayload);
                     return;
@@ -216,7 +216,7 @@ public class GameMessageController {
             var dissolvePayload = new java.util.HashMap<String, Object>();
             dissolvePayload.put("type", "room_dissolved");
             dissolvePayload.put("roomId", roomId);
-            gameSession.endGame(roomId);
+            gameSession.endGameAndCleanupLock(roomId, null);
             registry.removeRoom(roomId);
             broadcast.sendToRoom(roomId, dissolvePayload);
         });

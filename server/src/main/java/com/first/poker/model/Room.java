@@ -15,9 +15,9 @@ public class Room {
     private List<Player> players;
     private int dealerIndex;
     private long createdAt;
-    private long lastActivity;
+    private volatile long lastActivity;
     private int handCount;
-    private Player owner;
+    private volatile Player owner;
 
     public Room(String roomId, String name, RoomConfig config) {
         this.roomId = roomId;

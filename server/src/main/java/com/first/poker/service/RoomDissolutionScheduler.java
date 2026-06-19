@@ -29,7 +29,7 @@ public class RoomDissolutionScheduler {
                 String roomId = room.getRoomId();
                 System.out.println("[DISSOLVE-INACTIVE] " + roomId + " inactive for 30+ minutes");
                 gameSession.executeWithLock(roomId, () -> {
-                    gameSession.endGame(roomId);
+                    gameSession.endGameAndCleanupLock(roomId, null);
                     registry.removeRoom(roomId);
                     var payload = new HashMap<String, Object>();
                     payload.put("type", "room_dissolved");

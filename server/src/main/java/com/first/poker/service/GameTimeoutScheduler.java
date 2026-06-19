@@ -10,7 +10,8 @@ import java.util.function.BiConsumer;
 
 public class GameTimeoutScheduler {
 
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
+        Math.max(4, Runtime.getRuntime().availableProcessors()));
     private final Map<String, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
     private final BiConsumer<String, String> timeoutCallback;
 

@@ -64,60 +64,64 @@ public class GameDisconnectHandler {
         final String fRoomId = roomId;
         final String fSessionId = sessionId;
 
-        var room = roomService.findRoom(fRoomId);
-        if (room == null) return;
+        // Phase 1: Mark player as DISCONNECTED and auto-fold under lock
+        gameSession.executeWithLock(fRoomId, () -> {
+            var room = roomService.findRoom(fRoomId);
+            if (room == null) return;
 
-        // Mark player as DISCONNECTED
-        room.getPlayers().stream()
-            .filter(p -> p.getPlayerId().equals(fPlayerId))
-            .findFirst()
-            .ifPresent(p -> {
-                p.setStatus(PlayerStatus.DISCONNECTED);
-                p.setConnected(false);
-            });
+            room.getPlayers().stream()
+                .filter(p -> p.getPlayerId().equals(fPlayerId))
+                .findFirst()
+                .ifPresent(p -> {
+                    p.setStatus(PlayerStatus.DISCONNECTED);
+                    p.setConnected(false);
+                });
 
-        boolean isPlaying = gameSession.hasActiveSession(fRoomId);
+            boolean isPlaying = gameSession.hasActiveSession(fRoomId);
 
-        // Auto-fold if it's the player's turn
-        if (isPlaying) {
-            try {
-                var state = gameSession.getState(fRoomId);
-                if (state != null && state.currentPlayer().playerId().equals(fPlayerId)) {
-                    gameSession.applyAction(fRoomId, fPlayerId, GameAction.FOLD, 0);
+            // Auto-fold if it's the player's turn
+            if (isPlaying) {
+                try {
+                    var state = gameSession.getState(fRoomId);
+                    if (state != null && state.currentPlayer().playerId().equals(fPlayerId)) {
+                        gameSession.applyAction(fRoomId, fPlayerId, GameAction.FOLD, 0);
+                    }
+                } catch (Exception e) {
+                    System.out.println("[DISCONNECT-FOLD] " + fPlayerId + " fold failed: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                System.out.println("[DISCONNECT-FOLD] " + fPlayerId + " fold failed: " + e.getMessage());
             }
-        }
+        });
 
-        // Broadcast disconnect
+        // Phase 2: Broadcast (outside lock, broadcast is thread-safe)
         var payload = new HashMap<String, Object>();
         payload.put("type", "player_disconnected");
         payload.put("playerId", fPlayerId);
         broadcast.sendToRoom(fRoomId, payload);
 
-        // Grace period: 60s before removing the player
+        // Phase 3: Grace period timer (60s) — accesses under lock
         var executor = Executors.newSingleThreadScheduledExecutor();
         ScheduledFuture<?> timer = executor.schedule(() -> {
-            try {
-                var r = roomService.findRoom(fRoomId);
-                if (r == null) return;
-                r.getPlayers().stream()
-                    .filter(p -> p.getPlayerId().equals(fPlayerId)
-                              && p.getStatus() == PlayerStatus.DISCONNECTED)
-                    .findFirst()
-                    .ifPresent(p -> {
-                        r.removePlayer(fPlayerId);
-                        sessionToPlayer.remove(fSessionId);
-                        playerRooms.remove(fPlayerId);
-                        graceTimers.remove(fPlayerId);
-                        System.out.println("[DISCONNECT-EXPIRE] " + fPlayerId + " removed from " + fRoomId);
-                        broadcast.sendToRoom(fRoomId, "room", roomToUpdatedResponse(r));
-                    });
-                executor.shutdown();
-            } catch (Exception e) {
-                System.err.println("[DISCONNECT-EXPIRE-ERROR] " + fPlayerId + ": " + e.getMessage());
-            }
+            gameSession.executeWithLock(fRoomId, () -> {
+                try {
+                    var r = roomService.findRoom(fRoomId);
+                    if (r == null) return;
+                    r.getPlayers().stream()
+                        .filter(p -> p.getPlayerId().equals(fPlayerId)
+                                  && p.getStatus() == PlayerStatus.DISCONNECTED)
+                        .findFirst()
+                        .ifPresent(p -> {
+                            r.removePlayer(fPlayerId);
+                            sessionToPlayer.remove(fSessionId);
+                            playerRooms.remove(fPlayerId);
+                            graceTimers.remove(fPlayerId);
+                            System.out.println("[DISCONNECT-EXPIRE] " + fPlayerId + " removed from " + fRoomId);
+                        });
+                    broadcast.sendToRoom(fRoomId, "room", roomToUpdatedResponse(r));
+                } catch (Exception e) {
+                    System.err.println("[DISCONNECT-EXPIRE-ERROR] " + fPlayerId + ": " + e.getMessage());
+                }
+            });
+            executor.shutdown();
         }, 60, TimeUnit.SECONDS);
         graceTimers.put(fPlayerId, timer);
     }
@@ -127,19 +131,20 @@ public class GameDisconnectHandler {
         if (timer != null) {
             timer.cancel(false);
         }
-        // Restore player status
         var roomId = playerRooms.get(playerId);
         if (roomId != null) {
-            var room = roomService.findRoom(roomId);
-            if (room != null) {
-                room.getPlayers().stream()
-                    .filter(p -> p.getPlayerId().equals(playerId))
-                    .findFirst()
-                    .ifPresent(p -> {
-                        p.setStatus(PlayerStatus.ACTIVE);
-                        p.setConnected(true);
-                    });
-            }
+            gameSession.executeWithLock(roomId, () -> {
+                var room = roomService.findRoom(roomId);
+                if (room != null) {
+                    room.getPlayers().stream()
+                        .filter(p -> p.getPlayerId().equals(playerId))
+                        .findFirst()
+                        .ifPresent(p -> {
+                            p.setStatus(PlayerStatus.ACTIVE);
+                            p.setConnected(true);
+                        });
+                }
+            });
         }
     }
 

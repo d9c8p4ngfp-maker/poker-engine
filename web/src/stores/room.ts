@@ -88,6 +88,7 @@ export const useRoomStore = defineStore('room', () => {
     gameOver.value = true
     leaderboard.value = data.leaderboard
     bustedPlayerIds.value = data.bustedPlayerIds
+    status.value = 'WAITING' // Room returns to waiting after game ends
   }
 
   function reset() {

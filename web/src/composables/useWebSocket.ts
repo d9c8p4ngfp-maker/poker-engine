@@ -15,6 +15,13 @@ function getWsUrl(): string {
 
 let userPlayerId = ''
 
+// Optional logger — set via setLogger() before connect()
+let wsLogger: { logWsSend: (dest: string, payload?: unknown) => void; logWsRecv: (dest: string, raw: unknown) => void; logError: (label: string, err?: unknown) => void } | null = null
+
+export function setWsLogger(logger: typeof wsLogger) {
+  wsLogger = logger
+}
+
 export function useWebSocket(playerId?: string) {
   if (playerId) userPlayerId = playerId
   function connect(): Promise<void> {
@@ -42,6 +49,7 @@ export function useWebSocket(playerId?: string) {
         },
         onStompError: (frame) => {
           console.error('[WS] STOMP error:', frame.headers['message'])
+          wsLogger?.logError('ws-stomp-error', frame.headers['message'])
           if (!resolved) { resolved = true; reject(new Error(frame.headers['message'])) }
         },
       })
@@ -63,7 +71,10 @@ export function useWebSocket(playerId?: string) {
       console.warn('[WS] Cannot subscribe: not connected')
       return
     }
-    stompClient.subscribe(destination, callback)
+    stompClient.subscribe(destination, (msg) => {
+      wsLogger?.logWsRecv(destination, msg.body)
+      callback(msg)
+    })
   }
 
   function send(destination: string, body: string | object = {}) {
@@ -72,6 +83,7 @@ export function useWebSocket(playerId?: string) {
       return
     }
     const payload = typeof body === 'string' ? body : JSON.stringify(body)
+    wsLogger?.logWsSend(destination, typeof body === 'string' ? body : body)
     stompClient.publish({
       destination,
       body: payload,

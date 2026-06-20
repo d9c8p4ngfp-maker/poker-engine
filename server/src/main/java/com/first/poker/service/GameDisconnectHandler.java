@@ -100,7 +100,10 @@ public class GameDisconnectHandler {
                 .filter(p -> p.getPlayerId().equals(fPlayerId))
                 .findFirst()
                 .ifPresent(p -> {
-                    p.setStatus(PlayerStatus.DISCONNECTED);
+                    boolean isPlaying = gameSession.hasActiveSession(fRoomId);
+                    if (isPlaying) {
+                        p.setStatus(PlayerStatus.DISCONNECTED);
+                    }
                     p.setConnected(false);
                 });
 

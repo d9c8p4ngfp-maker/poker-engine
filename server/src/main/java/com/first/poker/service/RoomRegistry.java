@@ -11,8 +11,15 @@ public class RoomRegistry {
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
 
     public Room createRoom(String name, RoomConfig config) {
+        return createRoom(name, config, null);
+    }
+
+    public Room createRoom(String name, RoomConfig config, String password) {
         String roomId = generateUniqueId();
         Room room = new Room(roomId, name, config);
+        if (password != null && !password.isBlank()) {
+            room.setPassword(password);
+        }
         rooms.put(roomId, room);
         return room;
     }

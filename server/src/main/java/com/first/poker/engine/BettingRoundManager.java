@@ -31,20 +31,44 @@ public class BettingRoundManager {
                     .withActedMask(newMask));
             }
             case BET -> {
-                var updated = player.withChipsDeducted(amount);
+                int delta = amount - player.roundBet();
+                if (delta < 0) delta = 0;
+                int actual = Math.min(delta, player.chips());
+                boolean allIn = player.allIn() || (amount >= player.chips());
+                var updated = new GamePlayerState(
+                    player.playerId(), player.nickname(), player.seatIndex(),
+                    player.chips() - actual,
+                    player.totalBet() + actual,
+                    player.roundBet() + actual,
+                    player.folded(),
+                    allIn,
+                    player.holeCards()
+                );
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
-                    .withPot(s.pot() + amount)
-                    .withCurrentBet(amount)
+                    .withPot(s.pot() + actual)
+                    .withCurrentBet(updated.roundBet())
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));
             }
             case RAISE -> {
-                var updated = player.withChipsDeducted(amount);
+                int delta = amount - player.roundBet();
+                if (delta < 0) delta = 0;
+                int actual = Math.min(delta, player.chips());
+                boolean allIn = player.allIn() || (amount >= player.chips());
+                var updated = new GamePlayerState(
+                    player.playerId(), player.nickname(), player.seatIndex(),
+                    player.chips() - actual,
+                    player.totalBet() + actual,
+                    player.roundBet() + actual,
+                    player.folded(),
+                    allIn,
+                    player.holeCards()
+                );
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
-                    .withPot(s.pot() + amount)
-                    .withCurrentBet(amount)
+                    .withPot(s.pot() + actual)
+                    .withCurrentBet(updated.roundBet())
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));
             }
@@ -73,12 +97,28 @@ public class BettingRoundManager {
     public static boolean isRoundComplete(GameState state, int actedMask, int lastAggressorIndex) {
         int playerCount = state.players().size();
         int allActiveMask = 0;
-        int currentBet = state.currentBet();
 
         for (int i = 0; i < playerCount; i++) {
             var p = state.players().get(i);
             if (!p.folded() && !p.allIn()) {
                 allActiveMask |= (1 << i);
+            }
+        }
+
+        // Only 0 or 1 non-all-in active player remains — no more betting possible.
+        // Just verify that the active player has already acted.
+        // (The roundBet-vs-currentBet equality check is skipped because all-in
+        //  calls can leave the remaining player's roundBet mismatched with
+        //  currentBet when BB/ante is included.)
+        if (Integer.bitCount(allActiveMask) <= 1) {
+            return (actedMask & allActiveMask) == allActiveMask;
+        }
+
+        // Multiple active players: all must have matched the current bet
+        int currentBet = state.currentBet();
+        for (int i = 0; i < playerCount; i++) {
+            var p = state.players().get(i);
+            if (!p.folded() && !p.allIn()) {
                 if (p.roundBet() != currentBet) return false;
             }
         }

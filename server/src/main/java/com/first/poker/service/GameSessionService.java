@@ -47,11 +47,21 @@ public class GameSessionService {
                 throw new IllegalStateException("Game already in progress for room " + roomId);
             }
 
-            // Convert to GamePlayerState — only ACTIVE players participate
+            // Convert to GamePlayerState — only ACTIVE players with chips participate.
+            // Players with 0 chips (busted, not yet borrowed) are excluded
+            // without changing their PlayerStatus, which is owned by the room layer.
             List<GamePlayerState> players = room.getPlayers().stream()
-                .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE)
+                .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE
+                          && p.getChips() > 0)
                 .map(GamePlayerState::fromPlayer)
                 .toList();
+
+            if (players.size() < 2) {
+                throw new IllegalArgumentException(
+                    "Need at least 2 players with chips to start; only " + players.size()
+                    + " has chips. Please borrow chips for 0-chip players first."
+                );
+            }
 
             var result = GameEngine.startHand(players, room.getDealerIndex(), room.getConfig());
             sessions.put(roomId, result.state());

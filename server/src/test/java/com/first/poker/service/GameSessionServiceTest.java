@@ -114,4 +114,33 @@ class GameSessionServiceTest {
         assertTrue(taskRan[0]);
         assertFalse(service.hasActiveSession("R5"));
     }
+
+    @Test
+    void shouldRejectStartWhenOnlyOnePlayerHasChips() {
+        // Owner has 0 chips, only the other player has chips → 1 eligible player
+        var owner = new Player("A", "Alice", 0, 0);
+        var other = new Player("B", "Bob", 1, 1000);
+        var room = makeRoom("R6", List.of(owner, other));
+        var service = new GameSessionService();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.startGame(room, "A"));
+        assertTrue(ex.getMessage().contains("at least 2 players"));
+        assertFalse(service.hasActiveSession("R6"),
+            "No zombie session should be left behind");
+    }
+
+    @Test
+    void shouldRejectStartWhenAllPlayersHaveZeroChips() {
+        var owner = new Player("A", "Alice", 0, 0);
+        var other = new Player("B", "Bob", 1, 0);
+        var room = makeRoom("R7", List.of(owner, other));
+        var service = new GameSessionService();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.startGame(room, "A"));
+        assertTrue(ex.getMessage().contains("at least 2 players"));
+        assertFalse(service.hasActiveSession("R7"),
+            "No zombie session should be left behind");
+    }
 }

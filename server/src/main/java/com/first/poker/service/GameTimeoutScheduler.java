@@ -1,6 +1,9 @@
 package com.first.poker.service;
 
 import java.util.Map;
+import jakarta.annotation.PreDestroy;
+
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -47,7 +50,9 @@ public class GameTimeoutScheduler {
         }
     }
 
+    @PreDestroy
     public void shutdown() {
-        executor.shutdownNow();
+        System.out.println("[TIMEOUT-SCHEDULER] Shutting down executor");
+        executor.shutdown();
     }
 }

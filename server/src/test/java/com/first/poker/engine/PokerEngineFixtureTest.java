@@ -308,7 +308,8 @@ class PokerEngineFixtureTest {
         var result = GameEngine.processAction(state, GameAction.CALL, 0);
 
         var pA = result.state().players().get(0);
-        assertEquals(0, pA.chips(), "pA should have 0 chips after calling all-in");
-        assertTrue(pA.allIn(), "Player with 0 chips should be marked allIn");
+        assertTrue(pA.allIn(), "Player who called with all remaining chips should be marked allIn");
+        // After pA goes all-in, only pB remains active → round completes, hand auto-resolves
+        assertTrue(result.handComplete(), "Heads-up all-in should complete the hand");
     }
 }

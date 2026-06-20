@@ -17,6 +17,12 @@ public class GameStateSnapshot {
         map.put("pot", state.pot());
         map.put("currentBet", state.currentBet());
         map.put("currentPlayerIndex", state.currentPlayerIndex());
+        // currentPlayerId: the playerId of whoever should act next.
+        // The frontend uses this for isMyTurn checks instead of indexing
+        // into the players array (which may be in a different order).
+        if (state.currentPlayerIndex() >= 0 && state.currentPlayerIndex() < state.players().size()) {
+            map.put("currentPlayerId", state.currentPlayer().playerId());
+        }
         map.put("smallBlind", state.smallBlindAmount());
         map.put("bigBlind", state.bigBlindAmount());
         map.put("dealerIndex", state.dealerIndex());
@@ -26,25 +32,53 @@ public class GameStateSnapshot {
 
         Map<String, Player> roomPlayerMap = room != null
             ? room.getPlayers().stream().collect(Collectors.toMap(Player::getPlayerId, p -> p, (a, b) -> a))
-            : Collections.emptyMap();
+            : null;
 
-        map.put("players", state.players().stream().map(p -> {
-            Player rp = roomPlayerMap.get(p.playerId());
-            Map<String, Object> pm = new LinkedHashMap<>();
-            pm.put("playerId", p.playerId());
-            pm.put("nickname", p.nickname());
-            pm.put("seatIndex", p.seatIndex());
-            pm.put("chips", p.chips());
-            pm.put("betInRound", p.roundBet());
-            pm.put("folded", p.folded());
-            pm.put("allIn", p.allIn());
-            pm.put("holeCards", isShowdown && !p.folded() ? p.holeCards().stream().map(Card::toString).toList() : null);
-            pm.put("lastAction", null);
-            pm.put("connected", rp != null ? rp.isConnected() : true);
-            pm.put("owner", rp != null ? rp.isOwner() : false);
-            pm.put("borrowCount", rp != null ? rp.getBorrowCount() : 0);
-            return pm;
-        }).toList());
+        // If we have room data, include ALL room players (even 0-chip excluded ones).
+        // Otherwise fall back to iterating over game-state players only.
+        if (roomPlayerMap != null) {
+            map.put("players", roomPlayerMap.values().stream().map(rp -> {
+                var sp = state.players().stream()
+                    .filter(gp -> gp.playerId().equals(rp.getPlayerId()))
+                    .findFirst().orElse(null);
+                Map<String, Object> pm = new LinkedHashMap<>();
+                pm.put("playerId", rp.getPlayerId());
+                pm.put("nickname", rp.getNickname());
+                pm.put("seatIndex", rp.getSeatIndex());
+                pm.put("chips", sp != null ? sp.chips() : rp.getChips());
+                pm.put("betInRound", sp != null ? sp.roundBet() : 0);
+                pm.put("folded", sp != null ? sp.folded() : false);
+                pm.put("allIn", sp != null ? sp.allIn() : false);
+                pm.put("holeCards", (isShowdown && sp != null && !sp.folded())
+                    ? sp.holeCards().stream().map(Card::toString).toList() : null);
+                pm.put("lastAction", null);
+                pm.put("connected", rp.isConnected());
+                pm.put("owner", rp.isOwner());
+                pm.put("borrowCount", rp.getBorrowCount());
+                if (sp == null) {
+                    pm.put("inGame", false);
+                }
+                return pm;
+            }).toList());
+        } else {
+            // No room data available — build from game state only (tests mainly)
+            map.put("players", state.players().stream().map(p -> {
+                Map<String, Object> pm = new LinkedHashMap<>();
+                pm.put("playerId", p.playerId());
+                pm.put("nickname", p.nickname());
+                pm.put("seatIndex", p.seatIndex());
+                pm.put("chips", p.chips());
+                pm.put("betInRound", p.roundBet());
+                pm.put("folded", p.folded());
+                pm.put("allIn", p.allIn());
+                pm.put("holeCards", isShowdown && !p.folded() ? p.holeCards().stream().map(Card::toString).toList() : null);
+                pm.put("lastAction", null);
+                pm.put("connected", true);
+                pm.put("owner", false);
+                pm.put("borrowCount", 0);
+                return pm;
+            }).toList());
+        }
         return map;
     }
 

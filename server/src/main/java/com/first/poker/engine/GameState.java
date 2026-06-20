@@ -4,6 +4,13 @@ import java.util.List;
 
 public record GameState(
     GamePhase phase,
+    /**
+     * Players who are actively participating in this hand. This list ONLY contains
+     * players who were included by {@code GameSessionService.startGame} at the
+     * start of the hand — typically ACTIVE players with chips &gt; 0. Room players
+     * who are spectating, disconnected, or have 0 chips are NOT in this list.
+     * For the complete room roster, use {@code Room.getPlayers()}.
+     */
     List<GamePlayerState> players,
     List<Card> communityCards,
     int pot,

@@ -34,8 +34,16 @@ public class GameBroadcastHelper {
     public void broadcastGameState(String roomId, GameState state) {
         var room = roomService.findRoom(roomId);
         broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state, room));
-        for (var p : state.players()) {
-            broadcast.sendToPlayer(p.playerId(), GameStateSnapshot.buildForPlayer(state, p.playerId(), room));
+        // Send personal snapshot to ALL room players (including spectators with 0 chips),
+        // not just hand participants. This ensures every player receives per-seat state.
+        if (room != null) {
+            for (var rp : room.getPlayers()) {
+                broadcast.sendToPlayer(rp.getPlayerId(), GameStateSnapshot.buildForPlayer(state, rp.getPlayerId(), room));
+            }
+        } else {
+            for (var p : state.players()) {
+                broadcast.sendToPlayer(p.playerId(), GameStateSnapshot.buildForPlayer(state, p.playerId(), null));
+            }
         }
     }
 
@@ -180,6 +188,10 @@ public class GameBroadcastHelper {
             if (cp.folded() || cp.allIn()) break;
 
             boolean isBot = cp.playerId().startsWith("bot-");
+            // NOTE: isZeroChipHuman can only trigger for a player who went all-in
+            // mid-hand and lost (chip count dropped to 0 within the game engine).
+            // Players excluded from the hand by startGame (0 chips at game start)
+            // are NOT in state.players() and will never reach this branch.
             boolean isZeroChipHuman = !isBot && cp.chips() <= 0;
 
             if (!isBot && !isZeroChipHuman) break; // Human with chips — stop
@@ -216,6 +228,7 @@ public class GameBroadcastHelper {
                 continue;
             } catch (Throwable e) {
                 System.err.println("[autoPlayBot] " + cp.playerId() + ": " + e.getClass().getName() + " - " + e.getMessage());
+                e.printStackTrace(System.err);
                 continue;
             }
         }

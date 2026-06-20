@@ -12,6 +12,7 @@ const props = defineProps<{
   isCurrentPlayer: boolean
   isMe: boolean
   holeCards: string[] | null
+  showdown?: boolean
 }>()
 </script>
 
@@ -35,7 +36,7 @@ const props = defineProps<{
           v-for="(card, i) in holeCards"
           :key="i"
           :card="card"
-          :face-up="isMe"
+          :face-up="isMe || showdown"
           size="sm"
         />
       </template>

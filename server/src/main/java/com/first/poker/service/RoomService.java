@@ -28,10 +28,9 @@ public class RoomService {
         applyConfig(config, req);
         String roomName = req.getRoomName() != null ? req.getRoomName()
             : (req.getName() != null ? req.getName() : "默认牌局");
-        Room room = registry.createRoom(roomName, config);
-        if (req.getPassword() != null && !req.getPassword().isBlank()) {
-            room.setPassword(req.getPassword());
-        }
+        // Password set inside registry.createRoom to avoid TOCTOU between
+        // room registration and password assignment (C13).
+        Room room = registry.createRoom(roomName, config, req.getPassword());
 
         // Auto-add owner as first player
         if (req.getOwnerId() != null) {

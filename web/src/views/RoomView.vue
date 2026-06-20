@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useWebSocket } from '../composables/useWebSocket'
+import { useWebSocket, setWsLogger } from '../composables/useWebSocket'
 import { useRoomStore } from '../stores/room'
 import { useUserStore } from '../stores/user'
+import { useLogger } from '../composables/useLogger'
+
+const logger = useLogger()
+setWsLogger({ logWsSend: logger.logWsSend, logWsRecv: logger.logWsRecv, logError: logger.logError })
+
 import PokerTable from '../components/poker/PokerTable.vue'
 import ActionPanel from '../components/poker/ActionPanel.vue'
 import HandResult from '../components/poker/HandResult.vue'
@@ -16,6 +21,15 @@ const roomId = route.params.roomId as string
 const userStore = useUserStore()
 const { connect, disconnect, subscribe, send, connected } = useWebSocket(userStore.playerId)
 const roomStore = useRoomStore()
+
+// Watch status transitions for logging
+let prevStatus = ''
+watch(() => roomStore.status, (newStatus) => {
+  if (newStatus !== prevStatus) {
+    logger.logState('status_change', { from: prevStatus, to: newStatus, playerCount: roomStore.players.length })
+    prevStatus = newStatus
+  }
+})
 
 const joinError = ref('')
 const joined = ref(false)
@@ -30,6 +44,7 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 // Init on mount: if came from home page (already joined), auto-connect
 onMounted(async () => {
+  logger.logLifecycle('mounted')
   joining.value = true
 
   // Allow re-entry by room URL even without previous Pinia state
@@ -45,6 +60,7 @@ onMounted(async () => {
   }
 
   try { await connect() } catch (e) {
+    logger.logError('ws_connect_failed', e)
     joinError.value = 'WebSocket 连接失败'; joining.value = false; return
   }
 
@@ -52,6 +68,7 @@ onMounted(async () => {
     const data = JSON.parse(msg.body)
 
     if (data.type === 'room_dissolved') {
+      logger.logState('room_dissolved', { roomId, initiator: data.playerId })
       alert('房间已解散')
       disconnect()
       roomStore.reset()
@@ -60,6 +77,7 @@ onMounted(async () => {
     }
 
     if (data.type === 'player_left') {
+      logger.logState('player_left', { playerId: data.playerId, newOwnerId: data.newOwnerId })
       roomStore.players = roomStore.players.filter(p => p.playerId !== data.playerId)
       if (data.newOwnerId && data.newOwnerId === userStore.playerId) {
         alert('你已成为新房主')
@@ -69,11 +87,13 @@ onMounted(async () => {
     }
 
     if (data.type === 'player_joined') {
+      logger.logState('player_joined', { playerId: data.playerId })
       refreshRoom()
       return
     }
 
     if (data.type === 'player_disconnected') {
+      logger.logState('player_disconnected', { playerId: data.playerId })
       const p = roomStore.players.find(p => p.playerId === data.playerId)
       if (p) p.connected = false
       return
@@ -103,20 +123,22 @@ onMounted(async () => {
     const data = JSON.parse(msg.body)
     // Game over: has both winners and leaderboard
     if (data.leaderboard) {
+      logger.logState('game_over', { leaderboard: data.leaderboard.length, busted: data.bustedPlayerIds?.length })
       showBustChoice.value = false
       roomStore.setGameOver(data)
       return
     }
     // Server-side error broadcast
     if (data.error) {
+      logger.logError('server_error_broadcast', data.error)
       console.error('[Game Error]', data.error)
       alert(data.error)
       stopCountdown()
       return
     }
-    // Winners broadcast: only update winners, don't nuke game state.
-    // Hand is complete — stop the countdown so stale auto-actions don't fire.
+    // Winners broadcast: only update winners
     if (data.winners) {
+      logger.logState('hand_complete_winners', { count: data.winners.length })
       stopCountdown()
       roomStore.winners = data.winners
     } else {
@@ -154,8 +176,10 @@ onMounted(async () => {
   // Fetch room state (GET, idempotent)
   await refreshRoom()
   if (roomStore.roomId) {
+    logger.logState('room_joined', { roomId, playerCount: roomStore.players.length })
     joined.value = true
   } else {
+    logger.logError('room_not_found', { roomId })
     joinError.value = '该房间不存在或已过期（服务器重启后房间会被清空），请返回首页重新创建'
   }
   joining.value = false
@@ -166,6 +190,7 @@ onMounted(async () => {
 let wasConnected = false
 watch(connected, async (now) => {
   if (now && !wasConnected && joined.value) {
+    logger.logLifecycle('ws_reconnect');
     console.log('[RoomView] WebSocket reconnected, re-joining room')
     try {
       await fetch(`/api/rooms/${roomId}/join`, {
@@ -176,6 +201,7 @@ watch(connected, async (now) => {
       await refreshRoom()
       console.log('[RoomView] Room re-joined after reconnect')
     } catch (e) {
+      logger.logError('reconnect_rejoin_failed', e)
       console.error('[RoomView] Reconnect re-join failed:', e)
     }
   }
@@ -204,9 +230,12 @@ interface SnapshotPayload {
 // Derived state
 const isMyTurn = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
-  const idx = roomStore.currentPlayerIndex
-  if (idx < 0 || idx >= roomStore.players.length) return false
-  return roomStore.players[idx].playerId === userStore.playerId
+  // Use currentPlayerId (directly sent by backend) rather than indexing
+  // into the players array. The backend's currentPlayerIndex refers to
+  // the game-engine-internal player list, which may be ordered differently
+  // from the room-based players array sent in the snapshot.
+  if (!roomStore.currentPlayerId) return false
+  return roomStore.currentPlayerId === userStore.playerId
 })
 
 const myPlayer = computed(() => {
@@ -217,9 +246,26 @@ const isOwner = computed(() => {
   return roomStore.players.some(p => p.owner && p.playerId === userStore.playerId)
 })
 
+/** True when I'm in the room but excluded from the current hand (0 chips at game start). */
+const isSpectating = computed(() => {
+  if (roomStore.status !== 'PLAYING') return false
+  const me = myPlayer.value
+  return !!(me && (me as any).inGame === false)
+})
+
+/** True when I'm all-in during a hand — chips committed, waiting for result. */
+const isAllIn = computed(() => {
+  if (roomStore.status !== 'PLAYING') return false
+  const me = myPlayer.value
+  return !!(me?.allIn)
+})
+
 const canStart = computed(() => {
   if (roomStore.status !== 'WAITING') return false
   if (roomStore.players.length < 2) return false
+  // Owner must have chips to participate
+  const owner = roomStore.players.find(p => p.owner)
+  if (!owner || owner.chips <= 0) return false
   // At least 2 players must have chips to start
   const withChips = roomStore.players.filter(p => p.chips > 0).length
   return withChips >= 2
@@ -228,6 +274,8 @@ const canStart = computed(() => {
 const startBlockReason = computed(() => {
   if (roomStore.status !== 'WAITING') return ''
   if (roomStore.players.length < 2) return '至少需要2人才能开始'
+  const owner = roomStore.players.find(p => p.owner)
+  if (owner && owner.chips <= 0) return '房主没有筹码，请先借筹码'
   const withChips = roomStore.players.filter(p => p.chips > 0).length
   if (withChips < 2) return '有玩家筹码归零，请等待借筹码或添加新机器人'
   return ''
@@ -241,7 +289,7 @@ const tablePlayers = computed(() => {
     chips: p.chips,
     betInRound: p.betInRound,
     folded: p.folded,
-    allIn: p.chips <= 0 ? false : p.allIn, // 0-chip players are busted, not all-in
+    allIn: p.allIn,
     seatIndex: p.seatIndex,
     holeCards: roomStore.status === 'FINISHED'
       ? (p.holeCards || null)
@@ -283,6 +331,7 @@ function stopCountdown() {
 
 function handleAction(payload: { type: string; amount?: number }) {
   if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  logger.logAction('action', { type: payload.type, amount: payload.amount, roomId, chips: myPlayer.value?.chips })
   send(`/app/game/${roomId}/action`, {
     playerId: userStore.playerId,
     action: payload.type,
@@ -292,12 +341,14 @@ function handleAction(payload: { type: string; amount?: number }) {
 
 function handleNextHand() {
   if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  logger.logAction('next_hand', { roomId })
   console.log('[RoomView] handleNextHand: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
 
 function handleStartGame() {
   if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  logger.logAction('start_game', { roomId, playerCount: roomStore.players.length })
   console.log('[RoomView] handleStartGame: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
@@ -324,6 +375,7 @@ async function refreshRoom() {
       roomStore.roomId = ''
     }
   } catch (e) {
+    logger.logError('refresh_room_failed', e)
     console.error('Failed to refresh room', e)
     roomStore.roomId = ''
   }
@@ -332,6 +384,7 @@ async function refreshRoom() {
 async function handleAddBot() {
   if (addingBot.value) return
   addingBot.value = true
+  logger.logAction('add_bot', { roomId, currentCount: roomStore.players.length })
   try {
     const res = await fetch(`/api/rooms/${roomId}/bots?count=1`, { method: 'POST' })
     if (!res.ok) {
@@ -341,6 +394,7 @@ async function handleAddBot() {
       await refreshRoom()
     }
   } catch (e) {
+    logger.logError('add_bot_failed', e)
     alert('添加机器人失败')
   } finally {
     addingBot.value = false
@@ -348,6 +402,7 @@ async function handleAddBot() {
 }
 
 function handleLeave() {
+  logger.logAction('leave_room', { roomId, status: roomStore.status })
   send(`/app/room/${roomId}/leave`, { playerId: userStore.playerId })
   disconnect()
   roomStore.reset()
@@ -355,7 +410,7 @@ function handleLeave() {
 }
 
 function handleBackToRoom() {
-  // Reset game-over state and transition back to waiting room
+  logger.logAction('back_to_lobby', { roomId })
   roomStore.gameOver = false
   roomStore.winners = null
   roomStore.leaderboard = []
@@ -369,6 +424,7 @@ const borrowing = ref(false)
 async function handleBorrow() {
   if (borrowing.value) return
   borrowing.value = true
+  logger.logAction('borrow_chips', { roomId })
   try {
     const res = await fetch(`/api/rooms/${roomId}/borrow`, {
       method: 'POST',
@@ -381,6 +437,7 @@ async function handleBorrow() {
       alert('借筹码失败')
     }
   } catch (e) {
+    logger.logError('borrow_failed', e)
     alert('借筹码失败')
   } finally {
     borrowing.value = false
@@ -388,6 +445,7 @@ async function handleBorrow() {
 }
 
 async function handleBustSpectate() {
+  logger.logAction('bust_spectate', { roomId })
   showBustChoice.value = false
   // Player chose to spectate — game continues, auto-fold on next turn
 }
@@ -412,14 +470,9 @@ const leaderboard = computed(() => {
     })
 })
 
-// Auto-fold when it's my turn but I have no chips (busted player spectating)
-watch([isMyTurn, () => myPlayer.value?.chips ?? 0], ([turn, chips]) => {
-  if (turn && chips <= 0) {
-    send(`/app/game/${roomId}/action`, { playerId: userStore.playerId, action: 'FOLD', amount: 0 })
-  }
-})
-
 onUnmounted(() => {
+  logger.logLifecycle('unmounted')
+  logger.flush()
   stopCountdown()
   disconnect()
   roomStore.reset()
@@ -433,6 +486,9 @@ onUnmounted(() => {
       <button @click="handleLeave" class="text-sm" style="color: var(--color-text-muted)">
         ← 退出
       </button>
+      <button @click="logger.download()" class="text-xs px-2 py-1 rounded" style="color: var(--color-text-muted); border: 1px solid var(--color-border);" title="下载操作日志 JSON">
+        📋 日志
+      </button>
       <div class="text-center">
         <div class="font-bold" style="color: var(--color-gold)">{{ roomStore.roomName || '房间' }}</div>
         <div class="text-xs" style="color: var(--color-text-muted)">
@@ -442,7 +498,7 @@ onUnmounted(() => {
       <button
         class="text-sm font-bold px-2 py-1 rounded"
         style="color: var(--color-gold); background-color: var(--color-surface)"
-        @click="showLeaderboard = !showLeaderboard"
+        @click="showLeaderboard = !showLeaderboard; logger.logAction('toggle_leaderboard', { visible: showLeaderboard })"
       >
         🏆 排行
       </button>
@@ -473,12 +529,13 @@ onUnmounted(() => {
             :dealer-index="roomStore.dealerIndex"
             :current-player-index="roomStore.currentPlayerIndex"
             :my-player-id="userStore.playerId"
+            :showdown="roomStore.status === 'FINISHED'"
           />
         </div>
 
-        <!-- Action panel or spectating overlay -->
-        <div v-if="(myPlayer?.chips ?? 0) <= 0 && roomStore.status === 'PLAYING' && !isMyTurn" class="text-center py-3 px-4 space-y-2">
-          <div class="text-sm font-bold" style="color: var(--color-text-muted)">👀 观战中 — 你没有筹码了</div>
+        <!-- Spectating: player excluded from this hand (0 chips at game start) -->
+        <div v-if="isSpectating" class="text-center py-3 px-4 space-y-2">
+          <div class="text-sm font-bold" style="color: var(--color-text-muted)">👀 观战中 — 你未参与此局</div>
           <button
             class="w-full py-2 rounded-lg font-bold text-sm transition active:scale-95"
             style="background-color: var(--color-accent); color: white"
@@ -489,16 +546,10 @@ onUnmounted(() => {
           </button>
           <div class="text-xs" style="color: var(--color-text-muted)">下一局生效</div>
         </div>
-        <!-- Zero-chip player's turn: show fold button so they can get out of the way -->
-        <div v-else-if="(myPlayer?.chips ?? 0) <= 0 && isMyTurn" class="text-center py-3 px-4 space-y-2">
-          <div class="text-sm font-bold" style="color: var(--color-warning)">⚠ 你没有筹码，请弃牌让游戏继续</div>
-          <button
-            class="w-full py-3 rounded-lg font-bold text-white transition active:scale-95"
-            style="background-color: var(--color-danger)"
-            @click="send(`/app/game/${roomId}/action`, { playerId: userStore.playerId, action: 'FOLD', amount: 0 })"
-          >
-            🃏 弃牌 (Fold)
-          </button>
+        <!-- All-in: my chips are committed to this hand, waiting for result -->
+        <div v-else-if="isAllIn" class="text-center py-3 px-4 space-y-1">
+          <div class="text-sm font-bold" style="color: var(--color-gold)">🔥 全押! 等待结果...</div>
+          <div class="text-xs" style="color: var(--color-text-muted)">你的筹码已全部投入此局</div>
         </div>
         <ActionPanel
           v-else-if="!roomStore.gameOver"

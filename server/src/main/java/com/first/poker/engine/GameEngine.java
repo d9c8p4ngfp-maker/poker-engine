@@ -28,8 +28,8 @@ public class GameEngine {
             throw new IllegalArgumentException("Hand is already over");
         }
 
-        // Cap bet/raise to remaining chips BEFORE validation
-        amount = Math.min(amount, state.currentPlayer().chips());
+        // Cap bet/raise to total chips (roundBet + remaining chips) BEFORE validation
+        amount = Math.min(amount, state.currentPlayer().roundBet() + state.currentPlayer().chips());
 
         ActionValidator.validate(state, action, amount);
 

@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 public class GameActionRequest {
     @NotBlank(message = "playerId is required")
     private String playerId;
-    @NotBlank(message = "action is required")
+    // action is validated manually in processAction — startGame doesn't send one
     private String action;
     private int amount;
 

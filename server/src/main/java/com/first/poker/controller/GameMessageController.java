@@ -58,9 +58,11 @@ public class GameMessageController {
 
             var state = gameSession.startGame(room, req.getPlayerId());
 
-            // Register all players for disconnect tracking
-            for (var p : state.players()) {
-                disconnectHandler.registerPlayer(roomId, p.playerId());
+            // Register ALL room players for disconnect tracking — not just hand
+            // participants. A non-participating owner who disconnects mid-game
+            // still needs grace-timer tracking so the room can be cleaned up.
+            for (var rp : room.getPlayers()) {
+                disconnectHandler.registerPlayer(roomId, rp.getPlayerId());
             }
 
             broadcastGameState(roomId, state);
@@ -79,9 +81,24 @@ public class GameMessageController {
 
     @MessageMapping("/game/{roomId}/action")
     public void processAction(@DestinationVariable String roomId, @Valid @Payload GameActionRequest req) {
+        // Manual validation: action is required for this endpoint but not for startGame
+        if (req.getAction() == null || req.getAction().isBlank()) {
+            var errorPayload = new java.util.HashMap<String, Object>();
+            errorPayload.put("error", "action is required");
+            broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
+            return;
+        }
         System.out.println("[ACTION] " + roomId + " " + req.getPlayerId() + " " + req.getAction() + " amount=" + req.getAmount());
         try {
-            GameAction action = GameAction.valueOf(req.getAction().toUpperCase());
+            GameAction action;
+            try {
+                action = GameAction.valueOf(req.getAction().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                var errorPayload = new java.util.HashMap<String, Object>();
+                errorPayload.put("error", "Invalid action: " + req.getAction());
+                broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
+                return;
+            }
             var result = gameSession.applyAction(roomId, req.getPlayerId(), action, req.getAmount());
 
             // Reset inactivity timer — any game action counts as activity

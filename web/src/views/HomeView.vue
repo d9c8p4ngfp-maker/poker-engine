@@ -2,21 +2,25 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useLogger } from '../composables/useLogger'
 
 const router = useRouter()
 const userStore = useUserStore()
+const logger = useLogger()
 
 const nickname = ref(userStore.nickname || '')
 const joinRoomId = ref('')
 
 function handleCreateRoom() {
   if (!nickname.value.trim()) return
+  logger.logAction('create_room', { nickname: nickname.value.trim() })
   userStore.setNickname(nickname.value.trim())
   router.push('/create')
 }
 
 async function handleJoinRoom() {
   if (!nickname.value.trim() || !joinRoomId.value.trim()) return
+  logger.logAction('join_room', { roomId: joinRoomId.value.trim(), nickname: nickname.value.trim() })
   userStore.setNickname(nickname.value.trim())
 
   const res = await fetch(`/api/rooms/${joinRoomId.value.trim()}/join`, {
@@ -29,6 +33,7 @@ async function handleJoinRoom() {
   })
 
   if (!res.ok) {
+    logger.logError('join_room_failed', { roomId: joinRoomId.value.trim(), status: res.status })
     if (res.status === 404) alert('房间不存在')
     else if (res.status === 403) alert('房间密码错误')
     else if (res.status === 409) alert('房间已满')
@@ -48,7 +53,8 @@ async function handleJoinRoom() {
 
     <div class="w-full max-w-sm space-y-5">
       <!-- Title -->
-      <div class="text-center">
+      <div class="text-center relative">
+        <button @click="logger.download()" class="absolute right-0 top-0 text-xs px-2 py-1 rounded" style="color: var(--color-text-muted); border: 1px solid var(--color-border);" title="下载操作日志">📋</button>
         <h1 class="text-3xl font-bold" style="color: var(--color-gold)">
           ♠ Texas Hold'em
         </h1>

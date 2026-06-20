@@ -14,6 +14,7 @@ export interface PlayerView {
   connected: boolean
   borrowCount?: number
   owner?: boolean
+  inGame?: boolean
 }
 
 export interface RoomSnapshot {
@@ -26,6 +27,7 @@ export interface RoomSnapshot {
   sidePots: { amount: number; eligiblePlayerIds: string[] }[]
   currentBet: number
   currentPlayerIndex: number
+  currentPlayerId?: string
   bettingRound: 'PREFLOP' | 'FLOP' | 'TURN' | 'RIVER' | 'SHOWDOWN'
   smallBlind: number
   bigBlind: number
@@ -46,6 +48,7 @@ export const useRoomStore = defineStore('room', () => {
   const sidePots = ref<{ amount: number; eligiblePlayerIds: string[] }[]>([])
   const currentBet = ref(0)
   const currentPlayerIndex = ref(-1)
+  const currentPlayerId = ref<string | null>(null)
   const bettingRound = ref<string>('PREFLOP')
   const smallBlind = ref(10)
   const bigBlind = ref(20)
@@ -65,25 +68,21 @@ export const useRoomStore = defineStore('room', () => {
     roomId.value = snapshot.roomId
     roomName.value = snapshot.name
     status.value = snapshot.status
-    // Merge incoming game-engine players with existing room-player metadata.
-    // The game engine doesn't know about owner / borrowCount / connected —
-    // those live on the Room model, not GamePlayerState. Merge them from
-    // whatever we already have locally so they survive every snapshot update.
-    const existingMap = new Map(players.value.map(p => [p.playerId, p]))
-    players.value = (snapshot.players || []).map(p => {
-      const old = existingMap.get(p.playerId)
-      return {
-        ...p,
-        owner: old?.owner ?? (p as any).owner ?? false,
-        borrowCount: old?.borrowCount ?? (p as any).borrowCount ?? 0,
-        connected: old?.connected ?? (p as any).connected ?? true,
-      }
-    })
+    players.value = (snapshot.players || []).map(p => ({
+      playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
+      chips: p.chips, betInRound: p.betInRound, folded: p.folded, allIn: p.allIn,
+      holeCards: p.holeCards, lastAction: p.lastAction,
+      connected: (p as any).connected ?? true,
+      borrowCount: (p as any).borrowCount ?? 0,
+      owner: (p as any).owner ?? false,
+      inGame: (p as any).inGame,
+    }))
     communityCards.value = snapshot.communityCards
     pot.value = snapshot.pot
     sidePots.value = snapshot.sidePots
     currentBet.value = snapshot.currentBet
     currentPlayerIndex.value = snapshot.currentPlayerIndex
+    currentPlayerId.value = snapshot.currentPlayerId ?? null
     bettingRound.value = snapshot.bettingRound
     smallBlind.value = snapshot.smallBlind
     bigBlind.value = snapshot.bigBlind
@@ -118,6 +117,7 @@ export const useRoomStore = defineStore('room', () => {
     sidePots.value = []
     currentBet.value = 0
     currentPlayerIndex.value = -1
+    currentPlayerId.value = null
     bettingRound.value = 'PREFLOP'
     smallBlind.value = 10
     bigBlind.value = 20
@@ -136,7 +136,7 @@ export const useRoomStore = defineStore('room', () => {
 
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
-    currentBet, currentPlayerIndex, bettingRound, smallBlind, bigBlind,
+    currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
     maxSeats, initialChips, minRaise, dealerIndex, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
     updateFromSnapshot, addSystemMessage, setGameOver, reset,

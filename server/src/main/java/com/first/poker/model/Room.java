@@ -1,6 +1,7 @@
 package com.first.poker.model;
 
 import com.first.poker.model.enums.RoomStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,6 +20,10 @@ public class Room {
     private int handCount;
     private volatile Player owner;
     private String password;
+
+    // Manual getter prevents password from being serialized to API responses
+    @JsonIgnore
+    public String getPassword() { return password; }
 
     public Room(String roomId, String name, RoomConfig config) {
         this.roomId = roomId;

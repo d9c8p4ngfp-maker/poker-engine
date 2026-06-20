@@ -10,6 +10,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import jakarta.annotation.PreDestroy;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +42,12 @@ public class GameDisconnectHandler {
         this.broadcast = broadcast;
         this.registry = registry;
         this.broadcastHelper = broadcastHelper;
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        graceExecutor.shutdown();
+        System.out.println("[DISCONNECT] Grace executor shut down");
     }
 
     public void registerPlayer(String roomId, String playerId) {

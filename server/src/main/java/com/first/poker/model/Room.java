@@ -18,6 +18,7 @@ public class Room {
     private volatile long lastActivity;
     private int handCount;
     private volatile Player owner;
+    private String password;
 
     public Room(String roomId, String name, RoomConfig config) {
         this.roomId = roomId;

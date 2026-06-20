@@ -18,9 +18,14 @@ import com.first.poker.service.RoomService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.Valid;
 
 @Controller
+@Validated
 public class GameMessageController {
 
     private final RoomService roomService;
@@ -45,7 +50,7 @@ public class GameMessageController {
     }
 
     @MessageMapping("/game/{roomId}/start")
-    public void startGame(@DestinationVariable String roomId, @Payload GameActionRequest req) {
+    public void startGame(@DestinationVariable String roomId, @Valid @Payload GameActionRequest req) {
         System.out.println("[START-GAME] " + roomId + " requested by " + req.getPlayerId());
         try {
             var room = roomService.findRoom(roomId);
@@ -73,7 +78,7 @@ public class GameMessageController {
     }
 
     @MessageMapping("/game/{roomId}/action")
-    public void processAction(@DestinationVariable String roomId, @Payload GameActionRequest req) {
+    public void processAction(@DestinationVariable String roomId, @Valid @Payload GameActionRequest req) {
         System.out.println("[ACTION] " + roomId + " " + req.getPlayerId() + " " + req.getAction() + " amount=" + req.getAmount());
         try {
             GameAction action = GameAction.valueOf(req.getAction().toUpperCase());
@@ -178,6 +183,7 @@ public class GameMessageController {
             }
 
             roomService.leaveRoom(roomId, playerId);
+            disconnectHandler.cancelGraceTimer(playerId);
             room.setLastActivity(System.currentTimeMillis());
 
             String newOwnerId = null;

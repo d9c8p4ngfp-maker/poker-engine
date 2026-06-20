@@ -29,6 +29,9 @@ public class RoomService {
         String roomName = req.getRoomName() != null ? req.getRoomName()
             : (req.getName() != null ? req.getName() : "默认牌局");
         Room room = registry.createRoom(roomName, config);
+        if (req.getPassword() != null && !req.getPassword().isBlank()) {
+            room.setPassword(req.getPassword());
+        }
 
         // Auto-add owner as first player
         if (req.getOwnerId() != null) {
@@ -45,6 +48,13 @@ public class RoomService {
     public Room joinRoom(String roomId, JoinRoomRequest req) {
         Room room = registry.findById(roomId);
         if (room == null) return null;
+
+        // ── Password check ──
+        if (room.getPassword() != null && !room.getPassword().isEmpty()
+                && !room.getPassword().equals(req.getPassword())) {
+            System.out.println("[WARN] " + req.getPlayerId() + " wrong password for room " + roomId);
+            return null;
+        }
 
         // ── Reconnect: player already in room → restore state ──
         var existing = room.getPlayers().stream()

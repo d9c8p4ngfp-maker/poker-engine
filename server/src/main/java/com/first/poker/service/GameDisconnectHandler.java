@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,6 +25,7 @@ public class GameDisconnectHandler {
     private final Map<String, String> playerRooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToPlayer = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> graceTimers = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService graceExecutor = Executors.newScheduledThreadPool(4);
     private final RoomService roomService;
     private final GameSessionService gameSession;
     private final BroadcastService broadcast;
@@ -50,6 +52,14 @@ public class GameDisconnectHandler {
 
     public void unregisterPlayer(String playerId) {
         playerRooms.remove(playerId);
+    }
+
+    public void cancelGraceTimer(String playerId) {
+        ScheduledFuture<?> timer = graceTimers.remove(playerId);
+        if (timer != null) {
+            timer.cancel(false);
+            System.out.println("[GRACE-CANCEL] " + playerId + " grace timer cancelled (player left)");
+        }
     }
 
     @EventListener
@@ -137,8 +147,7 @@ public class GameDisconnectHandler {
         // Phase 3: Grace period timer (5 min) — prevents temporary disconnections
         // (refresh, WiFi blip, switch tabs) from prematurely removing the player.
         // Only truly long absences trigger expiry.
-        var executor = Executors.newSingleThreadScheduledExecutor();
-        ScheduledFuture<?> timer = executor.schedule(() -> {
+        ScheduledFuture<?> timer = graceExecutor.schedule(() -> {
             gameSession.executeWithLock(fRoomId, () -> {
                 try {
                     var r = roomService.findRoom(fRoomId);
@@ -157,7 +166,6 @@ public class GameDisconnectHandler {
                     System.err.println("[DISCONNECT-EXPIRE-ERROR] " + fPlayerId + ": " + e.getMessage());
                 }
             });
-            executor.shutdown();
         }, 300, TimeUnit.SECONDS);
         graceTimers.put(fPlayerId, timer);
     }

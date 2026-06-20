@@ -20,6 +20,19 @@ web/.vite/
 .cursor/hooks/mimo-review.conf
 .cursor/reviews/
 
+# Cursor IDE
+.cursor/
+
+# Docs
+docs/
+
+# Dev scripts
+*.bat
+
+# Tools (mimo, skills)
+.mimocode/
+.agents/
+
 # OS
 .DS_Store
 Thumbs.db

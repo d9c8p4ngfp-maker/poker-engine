@@ -182,8 +182,8 @@ public class GameMessageController {
                 }
             }
 
-            roomService.leaveRoom(roomId, playerId);
             disconnectHandler.cancelGraceTimer(playerId);
+            roomService.leaveRoom(roomId, playerId);
             room.setLastActivity(System.currentTimeMillis());
 
             String newOwnerId = null;

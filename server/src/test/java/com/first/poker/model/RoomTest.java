@@ -112,4 +112,24 @@ class RoomTest {
         assertEquals(3, successCount.get());
         assertEquals(3, room.getPlayers().size());
     }
+
+    // ── P1-4 (C13): Password field ──
+
+    @Test
+    void shouldStoreAndRetrievePassword() {
+        Room room = new Room("R001", "测试", RoomConfig.withDefaults());
+        assertNull(room.getPassword(), "password should be null by default");
+
+        room.setPassword("secret");
+        assertEquals("secret", room.getPassword());
+    }
+
+    @Test
+    void roomWithPassword_shouldNotBlockAddPlayer() {
+        Room room = new Room("R001", "测试", RoomConfig.withDefaults());
+        room.setPassword("pass123");
+        Player p = new Player("p1", "Alice", 0, 1000);
+        assertTrue(room.addPlayer(p));
+        assertEquals(1, room.getPlayers().size());
+    }
 }

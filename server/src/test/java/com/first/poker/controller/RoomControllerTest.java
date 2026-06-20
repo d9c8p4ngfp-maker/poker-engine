@@ -90,4 +90,73 @@ class RoomControllerTest {
                 .content("{\"playerId\":\"p1\",\"nickname\":\"Bob\"}"))
                 .andExpect(status().isNotFound());
     }
+
+    // ── P1-4 (C13): Password validation ──
+
+    @Test
+    void shouldCreateRoom_withPassword() throws Exception {
+        String body = "{\"name\":\"pw-room\",\"password\":\"secret123\"}";
+        mockMvc.perform(post("/api/rooms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomId").isString())
+                .andExpect(jsonPath("$.name").value("pw-room"));
+    }
+
+    @Test
+    void shouldRejectJoin_withWrongPassword() throws Exception {
+        String createBody = "{\"name\":\"pw-test\",\"password\":\"correct\"}";
+        var createRes = mockMvc.perform(post("/api/rooms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createBody))
+                .andExpect(status().isOk())
+                .andReturn();
+        String roomId = com.jayway.jsonpath.JsonPath
+                .read(createRes.getResponse().getContentAsString(), "$.roomId");
+
+        String joinBody = "{\"playerId\":\"p1\",\"nickname\":\"BadGuy\",\"password\":\"wrong\"}";
+        mockMvc.perform(post("/api/rooms/" + roomId + "/join")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(joinBody))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldAllowJoin_withCorrectPassword() throws Exception {
+        String createBody = "{\"name\":\"pw-correct\",\"password\":\"secret\"}";
+        var createRes = mockMvc.perform(post("/api/rooms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createBody))
+                .andExpect(status().isOk())
+                .andReturn();
+        String roomId = com.jayway.jsonpath.JsonPath
+                .read(createRes.getResponse().getContentAsString(), "$.roomId");
+
+        String joinBody = "{\"playerId\":\"p1\",\"nickname\":\"GoodGuy\",\"password\":\"secret\"}";
+        mockMvc.perform(post("/api/rooms/" + roomId + "/join")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(joinBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.players[0].nickname").value("GoodGuy"));
+    }
+
+    @Test
+    void shouldAllowJoin_whenRoomHasNoPassword() throws Exception {
+        String createBody = "{\"name\":\"open-room\"}";
+        var createRes = mockMvc.perform(post("/api/rooms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createBody))
+                .andExpect(status().isOk())
+                .andReturn();
+        String roomId = com.jayway.jsonpath.JsonPath
+                .read(createRes.getResponse().getContentAsString(), "$.roomId");
+
+        String joinBody = "{\"playerId\":\"p1\",\"nickname\":\"OpenPlayer\"}";
+        mockMvc.perform(post("/api/rooms/" + roomId + "/join")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(joinBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.players[0].nickname").value("OpenPlayer"));
+    }
 }

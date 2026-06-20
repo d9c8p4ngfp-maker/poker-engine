@@ -104,4 +104,35 @@ class GameMessageControllerTest {
         // Verify room operations were called inside the lock
         verify(roomService).leaveRoom(eq("RL"), eq("A"));
     }
+
+    // ── P1-2 (M2): cancelGraceTimer must be called BEFORE leaveRoom ──
+
+    @Test
+    void handleLeave_shouldCancelGraceTimer_beforeLeavingRoom() {
+        var roomService = mock(RoomService.class);
+        var gameSession = mock(GameSessionService.class);
+        var broadcast = mock(BroadcastService.class);
+        var timeout = mock(GameTimeoutScheduler.class);
+        var disconnect = mock(GameDisconnectHandler.class);
+        var registry = mock(RoomRegistry.class);
+        var helper = mock(GameBroadcastHelper.class);
+        var controller = new GameMessageController(roomService, gameSession, broadcast, timeout, disconnect, registry, helper);
+
+        doAnswer(invocation -> {
+            Runnable task = invocation.getArgument(1);
+            task.run();
+            return null;
+        }).when(gameSession).executeWithLock(anyString(), any(Runnable.class));
+
+        var room = new Room("RL", "test", RoomConfig.withDefaults());
+        room.addPlayer(new Player("A", "Alice", 0, 1000));
+        when(roomService.findRoom("RL")).thenReturn(room);
+
+        controller.handleLeave("RL", java.util.Map.of("playerId", "A"));
+
+        // Create an in-order verifier to ensure cancelGraceTimer runs BEFORE leaveRoom
+        var inOrder = inOrder(disconnect, roomService);
+        inOrder.verify(disconnect).cancelGraceTimer("A");
+        inOrder.verify(roomService).leaveRoom("RL", "A");
+    }
 }

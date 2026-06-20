@@ -1,7 +1,10 @@
 package com.first.poker.service;
 
 import com.first.poker.engine.GameAction;
+import com.first.poker.engine.GameEngine;
+import com.first.poker.engine.GameState;
 import com.first.poker.model.Player;
+import com.first.poker.model.Room;
 import com.first.poker.model.enums.PlayerStatus;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -13,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class GameDisconnectHandler {
@@ -24,13 +28,16 @@ public class GameDisconnectHandler {
     private final GameSessionService gameSession;
     private final BroadcastService broadcast;
     private final RoomRegistry registry;
+    private final GameBroadcastHelper broadcastHelper;
 
     public GameDisconnectHandler(RoomService roomService, GameSessionService gameSession,
-                                  BroadcastService broadcast, RoomRegistry registry) {
+                                  BroadcastService broadcast, RoomRegistry registry,
+                                  GameBroadcastHelper broadcastHelper) {
         this.roomService = roomService;
         this.gameSession = gameSession;
         this.broadcast = broadcast;
         this.registry = registry;
+        this.broadcastHelper = broadcastHelper;
     }
 
     public void registerPlayer(String roomId, String playerId) {
@@ -64,7 +71,9 @@ public class GameDisconnectHandler {
         final String fRoomId = roomId;
         final String fSessionId = sessionId;
 
-        // Phase 1: Mark player as DISCONNECTED and auto-fold under lock
+        // Phase 1: Mark player as DISCONNECTED and auto-fold under lock.
+        // Capture the ActionResult so we can handle handComplete properly.
+        AtomicReference<GameEngine.ActionResult> foldResult = new AtomicReference<>(null);
         gameSession.executeWithLock(fRoomId, () -> {
             var room = roomService.findRoom(fRoomId);
             if (room == null) return;
@@ -86,7 +95,8 @@ public class GameDisconnectHandler {
                 try {
                     var state = gameSession.getState(fRoomId);
                     if (state != null && state.currentPlayer().playerId().equals(fPlayerId)) {
-                        gameSession.applyAction(fRoomId, fPlayerId, GameAction.FOLD, 0);
+                        GameEngine.ActionResult result = gameSession.applyAction(fRoomId, fPlayerId, GameAction.FOLD, 0);
+                        foldResult.set(result);
                     }
                 } catch (Exception e) {
                     System.out.println("[DISCONNECT-FOLD] " + fPlayerId + " fold failed: " + e.getMessage());
@@ -94,13 +104,39 @@ public class GameDisconnectHandler {
             }
         });
 
-        // Phase 2: Broadcast (outside lock, broadcast is thread-safe)
-        var payload = new HashMap<String, Object>();
-        payload.put("type", "player_disconnected");
-        payload.put("playerId", fPlayerId);
-        broadcast.sendToRoom(fRoomId, payload);
+        GameEngine.ActionResult fr = foldResult.get();
 
-        // Phase 3: Grace period timer (60s) — accesses under lock
+        // Phase 2: Broadcast disconnect notice + updated state + handle handComplete
+        var dcPayload = new HashMap<String, Object>();
+        dcPayload.put("type", "player_disconnected");
+        dcPayload.put("playerId", fPlayerId);
+        broadcast.sendToRoom(fRoomId, dcPayload);
+
+        if (fr != null) {
+            broadcastHelper.broadcastGameState(fRoomId, fr.state());
+
+            if (fr.handComplete()) {
+                System.out.println("[DISCONNECT-HAND-COMPLETE] " + fRoomId + " triggered by " + fPlayerId + " disconnect-fold");
+                gameSession.endGame(fRoomId, () -> {
+                    var finalRoom = roomService.findRoom(fRoomId);
+                    if (finalRoom != null) broadcastHelper.syncRoomChips(fRoomId, fr.state());
+                });
+                if (broadcastHelper.checkGameOver(fRoomId, fr)) {
+                    // game-over broadcast already sent by checkGameOver
+                } else if (!fr.winners().isEmpty()) {
+                    broadcastHelper.broadcastWinners(fRoomId, fr);
+                }
+            } else {
+                // Hand not complete — let autoPlayBots continue
+                broadcastHelper.autoPlayBots(fRoomId);
+                var state = gameSession.getState(fRoomId);
+                if (state != null) broadcastHelper.scheduleNextTimeout(fRoomId, state);
+            }
+        }
+
+        // Phase 3: Grace period timer (5 min) — prevents temporary disconnections
+        // (refresh, WiFi blip, switch tabs) from prematurely removing the player.
+        // Only truly long absences trigger expiry.
         var executor = Executors.newSingleThreadScheduledExecutor();
         ScheduledFuture<?> timer = executor.schedule(() -> {
             gameSession.executeWithLock(fRoomId, () -> {
@@ -112,11 +148,9 @@ public class GameDisconnectHandler {
                                   && p.getStatus() == PlayerStatus.DISCONNECTED)
                         .findFirst()
                         .ifPresent(p -> {
-                            r.removePlayer(fPlayerId);
-                            sessionToPlayer.remove(fSessionId);
-                            playerRooms.remove(fPlayerId);
+                            p.setStatus(PlayerStatus.LEFT);
                             graceTimers.remove(fPlayerId);
-                            System.out.println("[DISCONNECT-EXPIRE] " + fPlayerId + " removed from " + fRoomId);
+                            System.out.println("[DISCONNECT-EXPIRE] " + fPlayerId + " marked LEFT in " + fRoomId);
                         });
                     broadcast.sendToRoom(fRoomId, "room", roomToUpdatedResponse(r));
                 } catch (Exception e) {
@@ -124,7 +158,7 @@ public class GameDisconnectHandler {
                 }
             });
             executor.shutdown();
-        }, 60, TimeUnit.SECONDS);
+        }, 300, TimeUnit.SECONDS);
         graceTimers.put(fPlayerId, timer);
     }
 
@@ -168,7 +202,8 @@ public class GameDisconnectHandler {
             "smallBlind", room.getConfig().getSmallBlind(),
             "bigBlind", room.getConfig().getBigBlind(),
             "maxSeats", room.getConfig().getMaxSeats(),
-            "dealerIndex", room.getDealerIndex()
+            "dealerIndex", room.getDealerIndex(),
+            "initialChips", room.getConfig().getInitialChips()
         );
     }
 }

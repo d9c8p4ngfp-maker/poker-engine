@@ -1,9 +1,11 @@
 package com.first.poker.service;
 
+import com.first.poker.engine.GameAction;
 import com.first.poker.engine.GameEngine;
 import com.first.poker.engine.GameState;
 import com.first.poker.engine.GameStateSnapshot;
 import com.first.poker.model.Room;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,7 +24,7 @@ public class GameBroadcastHelper {
     private final GameTimeoutScheduler timeoutScheduler;
 
     public GameBroadcastHelper(RoomService roomService, GameSessionService gameSession,
-                                BroadcastService broadcast, GameTimeoutScheduler timeoutScheduler) {
+                                BroadcastService broadcast, @Lazy GameTimeoutScheduler timeoutScheduler) {
         this.roomService = roomService;
         this.gameSession = gameSession;
         this.broadcast = broadcast;
@@ -30,9 +32,10 @@ public class GameBroadcastHelper {
     }
 
     public void broadcastGameState(String roomId, GameState state) {
-        broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state));
+        var room = roomService.findRoom(roomId);
+        broadcast.sendToRoom(roomId, "game", GameStateSnapshot.buildPublic(state, room));
         for (var p : state.players()) {
-            broadcast.sendToPlayer(p.playerId(), GameStateSnapshot.buildForPlayer(state, p.playerId()));
+            broadcast.sendToPlayer(p.playerId(), GameStateSnapshot.buildForPlayer(state, p.playerId(), room));
         }
     }
 
@@ -80,7 +83,9 @@ public class GameBroadcastHelper {
         var room = roomService.findRoom(roomId);
         if (room == null) return false;
 
-        boolean anyBusted = room.getPlayers().stream().anyMatch(p -> p.getChips() <= 0);
+        boolean anyBusted = room.getPlayers().stream()
+            .filter(p -> p.getStatus() != com.first.poker.model.enums.PlayerStatus.LEFT)
+            .anyMatch(p -> p.getChips() <= 0);
         if (!anyBusted) return false;
 
         if (room.getConfig().isBustEndsGame()) {
@@ -89,7 +94,9 @@ public class GameBroadcastHelper {
             return true;
         }
 
-        long activePlayers = room.getPlayers().stream().filter(p -> p.getChips() > 0).count();
+        long activePlayers = room.getPlayers().stream()
+            .filter(p -> p.getStatus() != com.first.poker.model.enums.PlayerStatus.LEFT)
+            .filter(p -> p.getChips() > 0).count();
         if (activePlayers <= 1) {
             System.out.println("[GAME-OVER] " + roomId + " last standing (active=" + activePlayers + ")");
             broadcastGameOver(roomId, room, result);
@@ -122,6 +129,47 @@ public class GameBroadcastHelper {
         broadcast.sendToRoom(roomId, "game", payload);
     }
 
+    public void handleTimeout(String roomId, String playerId) {
+        System.out.println("[TIMEOUT] " + roomId + " player=" + playerId);
+        gameSession.executeWithLock(roomId, () -> {
+            try {
+                GameEngine.ActionResult result = gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
+                broadcastGameState(roomId, result.state());
+
+                if (result.handComplete()) {
+                    timeoutScheduler.cancelTimeout(roomId);
+                    com.first.poker.engine.GameState finalState = result.state();
+                    gameSession.endGame(roomId, () -> syncRoomChips(roomId, finalState));
+                    if (!checkGameOver(roomId, result) && !result.winners().isEmpty()) {
+                        broadcastWinners(roomId, result);
+                    }
+                    return;
+                }
+
+                autoPlayBots(roomId);
+
+                // Schedule timeout for the next human player
+                var state = gameSession.getState(roomId);
+                if (state != null) scheduleNextTimeout(roomId, state);
+            } catch (Exception e) {
+                System.err.println("[TIMEOUT-ERROR] " + roomId + "/" + playerId + ": " + e.getMessage());
+                // Try to keep game moving even if timeout fold fails
+                autoPlayBots(roomId);
+            }
+        });
+    }
+
+    public void scheduleNextTimeout(String roomId, GameState state) {
+        var cp = state.currentPlayer();
+        if (cp != null && !cp.playerId().startsWith("bot-") && !cp.folded() && !cp.allIn()) {
+            System.out.println("[TIMEOUT-SCHEDULE] " + roomId + " for " + cp.playerId() + " (30s)");
+            timeoutScheduler.scheduleTimeout(roomId, cp.playerId(), 30);
+        }
+    }
+
+    public void cancelTimeout(String roomId) {
+        timeoutScheduler.cancelTimeout(roomId);
+    }
     public void autoPlayBots(String roomId) {
         System.out.println("[AUTOBOTS-START] " + roomId);
         int safety = 0;
@@ -129,22 +177,28 @@ public class GameBroadcastHelper {
             var state = gameSession.getState(roomId);
             if (state == null || state.currentPlayerIndex() < 0) break;
             var cp = state.currentPlayer();
-            if (!cp.playerId().startsWith("bot-")) break;
+            if (cp.folded() || cp.allIn()) break;
 
-            if (cp.folded() || cp.allIn()) {
-                break;
+            boolean isBot = cp.playerId().startsWith("bot-");
+            boolean isZeroChipHuman = !isBot && cp.chips() <= 0;
+
+            if (!isBot && !isZeroChipHuman) break; // Human with chips — stop
+
+            GameAction autoAction;
+            int amount = 0;
+            if (isBot) {
+                int toCall = state.currentBet() - cp.roundBet();
+                autoAction = toCall <= 0 ? GameAction.CHECK : GameAction.CALL;
+            } else {
+                autoAction = GameAction.FOLD; // 0-chip human always folds
             }
 
-            int toCall = state.currentBet() - cp.roundBet();
-            com.first.poker.engine.GameAction botAction = toCall <= 0
-                ? com.first.poker.engine.GameAction.CHECK
-                : com.first.poker.engine.GameAction.CALL;
-            int amount = 0;
-            System.out.println("[AUTOBOT] " + roomId + " " + cp.playerId() + " action=" + botAction + " toCall=" + toCall + " chips=" + cp.chips());
+            System.out.println("[AUTOPLAY] " + roomId + " " + cp.playerId()
+                + " action=" + autoAction + " chips=" + cp.chips());
             System.out.flush();
 
             try {
-                var result = gameSession.applyAction(roomId, cp.playerId(), botAction, amount);
+                var result = gameSession.applyAction(roomId, cp.playerId(), autoAction, amount);
                 broadcastGameState(roomId, result.state());
 
                 if (result.handComplete()) {
@@ -158,8 +212,6 @@ public class GameBroadcastHelper {
                     return;
                 }
             } catch (IllegalArgumentException e) {
-                // Not our turn anymore — another thread processed this bot's turn
-                // This is expected in the lock-check pattern
                 System.out.println("[autoPlayBot] " + cp.playerId() + " turn already processed, continuing");
                 continue;
             } catch (Throwable e) {
@@ -167,5 +219,8 @@ public class GameBroadcastHelper {
                 continue;
             }
         }
+        // Bots finished — schedule timeout for the next human player
+        var state = gameSession.getState(roomId);
+        if (state != null) scheduleNextTimeout(roomId, state);
     }
 }

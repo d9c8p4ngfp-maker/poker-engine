@@ -47,8 +47,9 @@ public class GameSessionService {
                 throw new IllegalStateException("Game already in progress for room " + roomId);
             }
 
-            // Convert to GamePlayerState
+            // Convert to GamePlayerState — only ACTIVE players participate
             List<GamePlayerState> players = room.getPlayers().stream()
+                .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE)
                 .map(GamePlayerState::fromPlayer)
                 .toList();
 

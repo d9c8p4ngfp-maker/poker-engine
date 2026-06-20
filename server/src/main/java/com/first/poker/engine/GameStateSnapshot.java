@@ -1,10 +1,14 @@
 package com.first.poker.engine;
 
+import com.first.poker.model.Player;
+import com.first.poker.model.Room;
+
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class GameStateSnapshot {
 
-    public static Map<String, Object> buildPublic(GameState state) {
+    public static Map<String, Object> buildPublic(GameState state, Room room) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("phase", phaseString(state.phase()));
         map.put("bettingRound", phaseString(state.phase()));
@@ -19,7 +23,13 @@ public class GameStateSnapshot {
         map.put("timeLeftSec", 30);
         map.put("minRaise", state.minRaise());
         boolean isShowdown = state.phase() == GamePhase.SHOWDOWN;
+
+        Map<String, Player> roomPlayerMap = room != null
+            ? room.getPlayers().stream().collect(Collectors.toMap(Player::getPlayerId, p -> p, (a, b) -> a))
+            : Collections.emptyMap();
+
         map.put("players", state.players().stream().map(p -> {
+            Player rp = roomPlayerMap.get(p.playerId());
             Map<String, Object> pm = new LinkedHashMap<>();
             pm.put("playerId", p.playerId());
             pm.put("nickname", p.nickname());
@@ -28,17 +38,18 @@ public class GameStateSnapshot {
             pm.put("betInRound", p.roundBet());
             pm.put("folded", p.folded());
             pm.put("allIn", p.allIn());
-            // Reveal all non-folded hole cards at showdown
             pm.put("holeCards", isShowdown && !p.folded() ? p.holeCards().stream().map(Card::toString).toList() : null);
             pm.put("lastAction", null);
-            pm.put("connected", true);
+            pm.put("connected", rp != null ? rp.isConnected() : true);
+            pm.put("owner", rp != null ? rp.isOwner() : false);
+            pm.put("borrowCount", rp != null ? rp.getBorrowCount() : 0);
             return pm;
         }).toList());
         return map;
     }
 
-    public static Map<String, Object> buildForPlayer(GameState state, String playerId) {
-        Map<String, Object> map = buildPublic(state);
+    public static Map<String, Object> buildForPlayer(GameState state, String playerId, Room room) {
+        Map<String, Object> map = buildPublic(state, room);
         var myPlayer = state.players().stream()
             .filter(p -> p.playerId().equals(playerId)).findFirst().orElse(null);
         if (myPlayer != null) {

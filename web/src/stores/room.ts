@@ -29,6 +29,7 @@ export interface RoomSnapshot {
   bettingRound: 'PREFLOP' | 'FLOP' | 'TURN' | 'RIVER' | 'SHOWDOWN'
   smallBlind: number
   bigBlind: number
+  initialChips?: number
   dealerIndex: number
   timeLeftSec: number
   myHoleCards?: string[]
@@ -49,6 +50,7 @@ export const useRoomStore = defineStore('room', () => {
   const smallBlind = ref(10)
   const bigBlind = ref(20)
   const maxSeats = ref(8)
+  const initialChips = ref(1000)
   const minRaise = ref(20)
   const dealerIndex = ref(0)
   const timeLeftSec = ref(0)
@@ -63,7 +65,20 @@ export const useRoomStore = defineStore('room', () => {
     roomId.value = snapshot.roomId
     roomName.value = snapshot.name
     status.value = snapshot.status
-    players.value = snapshot.players || []
+    // Merge incoming game-engine players with existing room-player metadata.
+    // The game engine doesn't know about owner / borrowCount / connected —
+    // those live on the Room model, not GamePlayerState. Merge them from
+    // whatever we already have locally so they survive every snapshot update.
+    const existingMap = new Map(players.value.map(p => [p.playerId, p]))
+    players.value = (snapshot.players || []).map(p => {
+      const old = existingMap.get(p.playerId)
+      return {
+        ...p,
+        owner: old?.owner ?? (p as any).owner ?? false,
+        borrowCount: old?.borrowCount ?? (p as any).borrowCount ?? 0,
+        connected: old?.connected ?? (p as any).connected ?? true,
+      }
+    })
     communityCards.value = snapshot.communityCards
     pot.value = snapshot.pot
     sidePots.value = snapshot.sidePots
@@ -72,6 +87,7 @@ export const useRoomStore = defineStore('room', () => {
     bettingRound.value = snapshot.bettingRound
     smallBlind.value = snapshot.smallBlind
     bigBlind.value = snapshot.bigBlind
+    if ((snapshot as any).initialChips) initialChips.value = (snapshot as any).initialChips
     dealerIndex.value = snapshot.dealerIndex
     minRaise.value = (snapshot as any).minRaise || snapshot.bigBlind || 20
     timeLeftSec.value = snapshot.timeLeftSec
@@ -88,7 +104,8 @@ export const useRoomStore = defineStore('room', () => {
     gameOver.value = true
     leaderboard.value = data.leaderboard
     bustedPlayerIds.value = data.bustedPlayerIds
-    status.value = 'WAITING' // Room returns to waiting after game ends
+    // Keep current status so the poker table stays visible behind the GameOver overlay.
+    // Transition to WAITING happens in handleBackToRoom() when user clicks "返回房间".
   }
 
   function reset() {
@@ -105,6 +122,7 @@ export const useRoomStore = defineStore('room', () => {
     smallBlind.value = 10
     bigBlind.value = 20
     maxSeats.value = 8
+    initialChips.value = 1000
     minRaise.value = 20
     dealerIndex.value = 0
     timeLeftSec.value = 0
@@ -119,7 +137,7 @@ export const useRoomStore = defineStore('room', () => {
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
     currentBet, currentPlayerIndex, bettingRound, smallBlind, bigBlind,
-    maxSeats, minRaise, dealerIndex, timeLeftSec, myHoleCards, winners,
+    maxSeats, initialChips, minRaise, dealerIndex, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
     updateFromSnapshot, addSystemMessage, setGameOver, reset,
   }

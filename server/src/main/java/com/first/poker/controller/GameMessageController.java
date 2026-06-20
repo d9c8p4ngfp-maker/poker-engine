@@ -60,6 +60,9 @@ public class GameMessageController {
 
             broadcastGameState(roomId, state);
             autoPlayBots(roomId);
+            // Schedule timeout for the first human to act
+            var initState = gameSession.getState(roomId);
+            if (initState != null) helper.scheduleNextTimeout(roomId, initState);
         } catch (Throwable e) {
             System.err.println("[START-GAME-ERROR] " + roomId + ": " + e.getClass().getName() + " - " + e.getMessage());
             e.printStackTrace(System.err);
@@ -98,6 +101,9 @@ public class GameMessageController {
             }
 
             autoPlayBots(roomId);
+            // Schedule timeout for next human player (after bots finish)
+            var currState = gameSession.getState(roomId);
+            if (currState != null) helper.scheduleNextTimeout(roomId, currState);
         } catch (Throwable e) {
             System.err.println("[processAction] " + req.getPlayerId() + " " + req.getAction() + ": " + e.getClass().getName() + " - " + e.getMessage());
             e.printStackTrace(System.err);
@@ -108,6 +114,8 @@ public class GameMessageController {
             broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
             // Try to auto-play bots in case the game should continue
             autoPlayBots(roomId);
+            var retryState = gameSession.getState(roomId);
+            if (retryState != null) helper.scheduleNextTimeout(roomId, retryState);
         }
     }
 
@@ -244,7 +252,8 @@ public class GameMessageController {
             "smallBlind", room.getConfig().getSmallBlind(),
             "bigBlind", room.getConfig().getBigBlind(),
             "maxSeats", room.getConfig().getMaxSeats(),
-            "dealerIndex", room.getDealerIndex()
+            "dealerIndex", room.getDealerIndex(),
+            "initialChips", room.getConfig().getInitialChips()
         );
     }
 

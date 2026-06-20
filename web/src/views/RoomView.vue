@@ -13,9 +13,9 @@ import BustChoice from '../components/poker/BustChoice.vue'
 const route = useRoute()
 const router = useRouter()
 const roomId = route.params.roomId as string
+const userStore = useUserStore()
 const { connect, disconnect, subscribe, send, connected } = useWebSocket(userStore.playerId)
 const roomStore = useRoomStore()
-const userStore = useUserStore()
 
 const joinError = ref('')
 const joined = ref(false)
@@ -95,6 +95,7 @@ onMounted(async () => {
       roomStore.smallBlind = data.smallBlind || 10
       roomStore.bigBlind = data.bigBlind || 20
       roomStore.maxSeats = data.maxSeats || 8
+      if (data.initialChips) roomStore.initialChips = data.initialChips
     }
   })
 
@@ -110,10 +111,13 @@ onMounted(async () => {
     if (data.error) {
       console.error('[Game Error]', data.error)
       alert(data.error)
+      stopCountdown()
       return
     }
-    // Winners broadcast: only update winners, don't nuke game state
+    // Winners broadcast: only update winners, don't nuke game state.
+    // Hand is complete — stop the countdown so stale auto-actions don't fire.
     if (data.winners) {
+      stopCountdown()
       roomStore.winners = data.winners
     } else {
       // New game state snapshot — clear previous game-over / leaderboard state
@@ -123,7 +127,7 @@ onMounted(async () => {
       roomStore.bustedPlayerIds = []
       roomStore.updateFromSnapshot(data, userStore.playerId)
     }
-    // Start/stop countdown on state changes
+    // Start/stop countdown on state changes (purely visual)
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
   })
@@ -138,6 +142,7 @@ onMounted(async () => {
     if (data.error) {
       console.error('[Game Error]', data.error)
       alert(data.error)
+      stopCountdown()
       return
     }
     if (data.winners) return // winners handled by public channel
@@ -154,6 +159,27 @@ onMounted(async () => {
     joinError.value = '该房间不存在或已过期（服务器重启后房间会被清空），请返回首页重新创建'
   }
   joining.value = false
+})
+
+// Reconnect detection: when WebSocket reconnects, re-join the room
+// to trigger onReconnect on the server (restores ACTIVE status, cancels grace timer)
+let wasConnected = false
+watch(connected, async (now) => {
+  if (now && !wasConnected && joined.value) {
+    console.log('[RoomView] WebSocket reconnected, re-joining room')
+    try {
+      await fetch(`/api/rooms/${roomId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: userStore.playerId, nickname: userStore.nickname }),
+      })
+      await refreshRoom()
+      console.log('[RoomView] Room re-joined after reconnect')
+    } catch (e) {
+      console.error('[RoomView] Reconnect re-join failed:', e)
+    }
+  }
+  wasConnected = now
 })
 
 interface PlayerView {
@@ -240,18 +266,14 @@ const legalActions = computed(() => {
   }
 })
 
-// Client-side countdown
+// Client-side countdown — purely visual, real timeout handled server-side by GameTimeoutScheduler
 function startCountdown() {
   stopCountdown()
-  localCountdown.value = roomStore.timeLeftSec || 30
+  localCountdown.value = 30
   countdownTimer = setInterval(() => {
     localCountdown.value--
     if (localCountdown.value <= 0) {
       stopCountdown()
-      // Auto-action on timeout: check if possible, otherwise call
-      const toCall = roomStore.currentBet - (myPlayer.value?.betInRound || 0)
-      const action = toCall <= 0 ? 'CHECK' : 'CALL'
-      send(`/app/game/${roomId}/action`, { playerId: userStore.playerId, action, amount: 0 })
     }
   }, 1000)
 }
@@ -260,6 +282,7 @@ function stopCountdown() {
 }
 
 function handleAction(payload: { type: string; amount?: number }) {
+  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
   send(`/app/game/${roomId}/action`, {
     playerId: userStore.playerId,
     action: payload.type,
@@ -268,11 +291,13 @@ function handleAction(payload: { type: string; amount?: number }) {
 }
 
 function handleNextHand() {
+  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
   console.log('[RoomView] handleNextHand: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
 
 function handleStartGame() {
+  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
   console.log('[RoomView] handleStartGame: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
@@ -294,6 +319,7 @@ async function refreshRoom() {
       roomStore.smallBlind = data.smallBlind
       roomStore.bigBlind = data.bigBlind
       roomStore.maxSeats = (data as any).maxSeats || 8
+      roomStore.initialChips = (data as any).initialChips || 1000
     } else {
       roomStore.roomId = ''
     }
@@ -329,11 +355,12 @@ function handleLeave() {
 }
 
 function handleBackToRoom() {
-  // Reset game-over state and return to waiting room view
+  // Reset game-over state and transition back to waiting room
   roomStore.gameOver = false
   roomStore.winners = null
   roomStore.leaderboard = []
   roomStore.bustedPlayerIds = []
+  roomStore.status = 'WAITING'
   // Refresh room state to get latest player chips etc.
   refreshRoom()
 }
@@ -369,12 +396,12 @@ async function handleBustSpectate() {
 const leaderboard = computed(() => {
   return [...roomStore.players]
     .sort((a, b) => {
-      const aNet = a.chips - ((a as any).borrowCount || 0) * 1000
-      const bNet = b.chips - ((b as any).borrowCount || 0) * 1000
+      const aNet = a.chips - ((a as any).borrowCount || 0) * roomStore.initialChips
+      const bNet = b.chips - ((b as any).borrowCount || 0) * roomStore.initialChips
       return bNet - aNet
     })
     .map((p, i) => {
-      const netChips = p.chips - ((p as any).borrowCount || 0) * 1000
+      const netChips = p.chips - ((p as any).borrowCount || 0) * roomStore.initialChips
       return {
         playerId: p.playerId,
         nickname: p.nickname,
@@ -450,7 +477,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Action panel or spectating overlay -->
-        <div v-if="(myPlayer?.chips ?? 0) <= 0 && roomStore.status === 'PLAYING'" class="text-center py-3 px-4 space-y-2">
+        <div v-if="(myPlayer?.chips ?? 0) <= 0 && roomStore.status === 'PLAYING' && !isMyTurn" class="text-center py-3 px-4 space-y-2">
           <div class="text-sm font-bold" style="color: var(--color-text-muted)">👀 观战中 — 你没有筹码了</div>
           <button
             class="w-full py-2 rounded-lg font-bold text-sm transition active:scale-95"
@@ -462,8 +489,19 @@ onUnmounted(() => {
           </button>
           <div class="text-xs" style="color: var(--color-text-muted)">下一局生效</div>
         </div>
+        <!-- Zero-chip player's turn: show fold button so they can get out of the way -->
+        <div v-else-if="(myPlayer?.chips ?? 0) <= 0 && isMyTurn" class="text-center py-3 px-4 space-y-2">
+          <div class="text-sm font-bold" style="color: var(--color-warning)">⚠ 你没有筹码，请弃牌让游戏继续</div>
+          <button
+            class="w-full py-3 rounded-lg font-bold text-white transition active:scale-95"
+            style="background-color: var(--color-danger)"
+            @click="send(`/app/game/${roomId}/action`, { playerId: userStore.playerId, action: 'FOLD', amount: 0 })"
+          >
+            🃏 弃牌 (Fold)
+          </button>
+        </div>
         <ActionPanel
-          v-else
+          v-else-if="!roomStore.gameOver"
           :is-my-turn="isMyTurn"
           :can-check="legalActions.canCheck"
           :can-call="legalActions.canCall"
@@ -471,6 +509,7 @@ onUnmounted(() => {
           :can-raise="legalActions.canRaise"
           :call-amount="legalActions.callAmount"
           :min-raise="roomStore.bigBlind"
+          :current-bet="roomStore.currentBet"
           :time-left-sec="localCountdown || roomStore.timeLeftSec"
           :my-chips="myPlayer?.chips || 0"
           @action="handleAction"
@@ -482,15 +521,6 @@ onUnmounted(() => {
           :winners="roomStore.winners"
           :is-owner="isOwner"
           @next-hand="handleNextHand"
-        />
-
-        <!-- Game Over Overlay -->
-        <GameOver
-          v-if="roomStore.gameOver"
-          :winners="roomStore.winners || []"
-          :leaderboard="roomStore.leaderboard"
-          :busted-player-ids="roomStore.bustedPlayerIds"
-          @back-to-lobby="handleBackToRoom"
         />
 
         <!-- Bust Choice Popup (personal, hidden when game over) -->
@@ -535,6 +565,9 @@ onUnmounted(() => {
             </div>
             <span class="text-sm" style="color: var(--color-gold)">
               💰 {{ player.chips }}
+              <span v-if="(player.borrowCount || 0) > 0" class="text-xs" style="color: var(--color-accent)">
+                (净: {{ player.chips - (player.borrowCount || 0) * roomStore.initialChips }})
+              </span>
             </span>
           </div>
         </div>
@@ -579,6 +612,15 @@ onUnmounted(() => {
           {{ startBlockReason }}
         </div>
       </div>
+
+      <!-- Game Over Overlay (outside PLAYING/WAITING areas so it stays visible regardless of status) -->
+      <GameOver
+        v-if="roomStore.gameOver"
+        :winners="roomStore.winners || []"
+        :leaderboard="roomStore.leaderboard"
+        :busted-player-ids="roomStore.bustedPlayerIds"
+        @back-to-lobby="handleBackToRoom"
+      />
     </div>
 
     <!-- Leaderboard Modal -->

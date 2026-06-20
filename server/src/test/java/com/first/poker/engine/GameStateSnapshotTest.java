@@ -18,7 +18,7 @@ class GameStateSnapshotTest {
         var deck = new Deck();
         var state = GameState.create(players, 0, 10, 20, deck);
 
-        var snapshot = GameStateSnapshot.buildPublic(state);
+        var snapshot = GameStateSnapshot.buildPublic(state, null);
 
         assertEquals("PREFLOP", snapshot.get("phase"));
         @SuppressWarnings("unchecked")
@@ -37,7 +37,7 @@ class GameStateSnapshotTest {
         var deck = new Deck();
         var state = GameState.create(players, 0, 10, 20, deck);
 
-        var snapshot = GameStateSnapshot.buildForPlayer(state, "A");
+        var snapshot = GameStateSnapshot.buildForPlayer(state, "A", null);
 
         @SuppressWarnings("unchecked")
         var myCards = (List<String>) snapshot.get("myHoleCards");
@@ -59,7 +59,7 @@ class GameStateSnapshotTest {
             List.of(Card.fromString("Ah"), Card.fromString("Kd"), Card.fromString("Qs")),
             100, 20, 20, 0, 0, 10, 20, deck, 0, -1);
 
-        var snapshot = GameStateSnapshot.buildPublic(state);
+        var snapshot = GameStateSnapshot.buildPublic(state, null);
 
         @SuppressWarnings("unchecked")
         var cards = (List<String>) snapshot.get("communityCards");
@@ -77,7 +77,7 @@ class GameStateSnapshotTest {
         var withPot = new GameState(state.phase(), state.players(), state.communityCards(),
             150, 20, 20, 0, 0, 10, 20, deck, 0, -1);
 
-        var snapshot = GameStateSnapshot.buildPublic(withPot);
+        var snapshot = GameStateSnapshot.buildPublic(withPot, null);
 
         assertEquals(150, snapshot.get("pot"));
         assertEquals(20, snapshot.get("currentBet"));
@@ -89,7 +89,7 @@ class GameStateSnapshotTest {
         var deck = new Deck();
         var state = new GameState(GamePhase.RIVER, players, List.of(), 200, 40, 20, 0, 0, 10, 20, deck, 0, -1);
 
-        var snapshot = GameStateSnapshot.buildPublic(state);
+        var snapshot = GameStateSnapshot.buildPublic(state, null);
 
         assertEquals("RIVER", snapshot.get("bettingRound"));
         assertEquals("PLAYING", snapshot.get("status"));

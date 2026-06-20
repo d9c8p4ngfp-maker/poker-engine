@@ -9,6 +9,7 @@ const props = defineProps<{
   canRaise: boolean
   callAmount: number
   minRaise: number
+  currentBet: number
   timeLeftSec: number
   myChips: number
 }>()
@@ -29,7 +30,7 @@ watch([() => props.canBet, () => props.canRaise], ([b, r]) => {
   if (b || r) {
     showSlider.value = true
     if (b) betAmount.value = props.minRaise
-    else betAmount.value = props.callAmount + props.minRaise
+    else betAmount.value = props.currentBet + props.minRaise
   } else {
     showSlider.value = false
   }
@@ -40,10 +41,21 @@ function doAction(type: string, amount?: number) {
 }
 
 function confirmBet() {
-  emit('action', { type: props.canBet ? 'BET' : 'RAISE', amount: betAmount.value })
+  emit('action', { type: props.canBet ? 'BET' : 'RAISE', amount: clampedBetAmount.value })
 }
 
 const betMax = computed(() => props.myChips)
+
+const betMin = computed(() => {
+  if (!props.isMyTurn) return 0
+  const raw = props.canBet ? props.minRaise : (props.currentBet + props.minRaise)
+  return Math.max(0, Math.min(raw, betMax.value))
+})
+
+const clampedBetAmount = computed({
+  get: () => Math.max(betMin.value, Math.min(betAmount.value, betMax.value)),
+  set: (v: number) => { betAmount.value = Math.max(betMin.value, Math.min(v, betMax.value)) }
+})
 
 const timerDisplay = computed(() => {
   const s = Math.max(0, Math.floor(props.timeLeftSec))
@@ -112,12 +124,12 @@ const timerDisplay = computed(() => {
       <div class="flex items-center gap-2">
         <input
           type="range"
-          :min="Math.min(canBet ? minRaise : callAmount + minRaise, betMax)"
+          :min="betMin"
           :max="betMax"
-          v-model.number="betAmount"
+          v-model.number="clampedBetAmount"
           class="flex-1 accent-yellow-400"
         />
-        <span class="text-sm font-bold text-white min-w-[40px] text-right">{{ betAmount }}</span>
+        <span class="text-sm font-bold text-white min-w-[40px] text-right">{{ clampedBetAmount }}</span>
       </div>
       <button
         data-test="btn-confirm-bet"
@@ -125,7 +137,7 @@ const timerDisplay = computed(() => {
         style="background-color: var(--color-gold)"
         @click="confirmBet"
       >
-        {{ canBet ? `Bet ${betAmount}` : `Raise to ${betAmount}` }}
+        {{ canBet ? `Bet ${clampedBetAmount}` : `Raise to ${clampedBetAmount}` }}
       </button>
     </div>
   </div>

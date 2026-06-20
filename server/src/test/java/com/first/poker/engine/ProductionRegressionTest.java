@@ -72,7 +72,7 @@ class ProductionRegressionTest {
         var finalResult = GameEngine.processAction(state, GameAction.CHECK, 0);
         assertTrue(finalResult.handComplete());
 
-        var snapshot = GameStateSnapshot.buildPublic(finalResult.state());
+        var snapshot = GameStateSnapshot.buildPublic(finalResult.state(), null);
         @SuppressWarnings("unchecked")
         var playerList = (List<java.util.Map<String, Object>>) snapshot.get("players");
         for (var pm : playerList) {

@@ -46,40 +46,31 @@ public class RoomService {
         Room room = registry.findById(roomId);
         if (room == null) return null;
 
-        // === Reconnect detection ===
-        // If player is already in room (disconnected earlier), this is a reconnect, not a new join.
-        // State restoration is delegated to disconnectHandler.onReconnect()
-        // which performs it inside executeWithLock — avoiding concurrency
-        // conflicts with syncRoomChips / onSessionDisconnect.
+        // ── Reconnect: player already in room → restore state ──
         var existing = room.getPlayers().stream()
             .filter(p -> p.getPlayerId().equals(req.getPlayerId()))
             .findFirst().orElse(null);
         if (existing != null) {
             disconnectHandler.onReconnect(req.getPlayerId());
             disconnectHandler.registerPlayer(roomId, req.getPlayerId());
+            room.setLastActivity(System.currentTimeMillis());
             System.out.println("[RECONNECT] " + req.getPlayerId() + " rejoined room " + roomId);
             return room;
         }
-        // === End reconnect detection ===
 
+        // ── New player: create and add ──
         boolean isPlaying = gameSessionService.hasActiveSession(roomId);
-
-        if (isPlaying) {
-            // Mid-game join: add as QUEUED
-            Player player = new Player(req.getPlayerId(), req.getNickname(),
-                    -1, room.getConfig().getInitialChips());
-            player.setStatus(com.first.poker.model.enums.PlayerStatus.QUEUED);
-            if (!room.addPlayer(player)) return null;
-            room.setLastActivity(System.currentTimeMillis());
-            return room;
-        }
-
-        // WAITING: add as ACTIVE
         Player player = new Player(req.getPlayerId(), req.getNickname(),
                 -1, room.getConfig().getInitialChips());
-        player.setStatus(com.first.poker.model.enums.PlayerStatus.ACTIVE);
+        player.setStatus(isPlaying
+            ? com.first.poker.model.enums.PlayerStatus.QUEUED
+            : com.first.poker.model.enums.PlayerStatus.ACTIVE);
         if (!room.addPlayer(player)) return null;
+
+        // ── Common: every player entering the room (new or reconnect)
+        //          must be registered for disconnect tracking ──
         room.setLastActivity(System.currentTimeMillis());
+        disconnectHandler.registerPlayer(roomId, req.getPlayerId());
         return room;
     }
 

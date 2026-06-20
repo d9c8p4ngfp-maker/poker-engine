@@ -17,6 +17,8 @@ web/.vite/
 
 # Env
 .env
+.cursor/hooks/mimo-review.conf
+.cursor/reviews/
 
 # OS
 .DS_Store

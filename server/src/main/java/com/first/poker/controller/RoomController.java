@@ -66,12 +66,14 @@ public class RoomController {
                 "seatIndex", p.getSeatIndex(),
                 "chips", p.getChips(),
                 "borrowCount", p.getBorrowCount(),
-                "connected", p.isConnected()
+                "connected", p.isConnected(),
+                "owner", p.isOwner()
             )).toList(),
             "smallBlind", room.getConfig().getSmallBlind(),
             "bigBlind", room.getConfig().getBigBlind(),
             "maxSeats", room.getConfig().getMaxSeats(),
-            "dealerIndex", room.getDealerIndex()
+            "dealerIndex", room.getDealerIndex(),
+            "initialChips", room.getConfig().getInitialChips()
         );
     }
 

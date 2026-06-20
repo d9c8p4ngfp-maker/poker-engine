@@ -13,7 +13,8 @@ class GameDisconnectHandlerTest {
         var gameSession = mock(GameSessionService.class);
         var broadcast = mock(BroadcastService.class);
         var registry = mock(RoomRegistry.class);
-        var handler = new GameDisconnectHandler(roomService, gameSession, broadcast, registry);
+        var broadcastHelper = mock(GameBroadcastHelper.class);
+        var handler = new GameDisconnectHandler(roomService, gameSession, broadcast, registry, broadcastHelper);
 
         handler.registerPlayer("R1", "pA");
         // Registration should succeed without error
@@ -26,7 +27,8 @@ class GameDisconnectHandlerTest {
         var gameSession = mock(GameSessionService.class);
         var broadcast = mock(BroadcastService.class);
         var registry = mock(RoomRegistry.class);
-        var handler = new GameDisconnectHandler(roomService, gameSession, broadcast, registry);
+        var broadcastHelper = mock(GameBroadcastHelper.class);
+        var handler = new GameDisconnectHandler(roomService, gameSession, broadcast, registry, broadcastHelper);
 
         handler.registerSession("s1", "pA");
         // Session registration should succeed

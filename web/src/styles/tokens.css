@@ -40,11 +40,11 @@
   --transition-fast: 150ms ease;
   --transition-normal: 300ms ease;
 
-  /* iPhone safe area */
-  --safe-top: 40px;
-  --safe-bottom: 40px;
+  /* iPhone 17 Pro Max landscape safe area (956×440 CSS pt, 3x scale) */
+  --safe-top: 20px;
+  --safe-bottom: 34px;
   --safe-left: 60px;
-  --safe-right: 40px;
+  --safe-right: 20px;
 }
 
 * {

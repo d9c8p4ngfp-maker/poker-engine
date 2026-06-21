@@ -48,7 +48,7 @@ describe('PlayerSeat', () => {
       props: { ...defaultProps, isCurrentPlayer: true },
     })
     const seat = wrapper.find('[data-test="seat"]')
-    expect(seat.classes()).toContain('border-yellow-400')
+    expect(seat.classes()).toContain('cur')
   })
 
   it('shows bet amount when bet > 0', () => {

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useLogger } from '../composables/useLogger'
+import { API_BASE_URL } from '../config'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -27,7 +28,7 @@ async function handleJoinRoom() {
   if (!nickname.value.trim() || !joinRoomId.value.trim()) return
   logger.logAction('join_room', { roomId: joinRoomId.value.trim(), nickname: nickname.value.trim() })
   userStore.setNickname(nickname.value.trim())
-  const res = await fetch(`/api/rooms/${joinRoomId.value.trim()}/join`, {
+  const res = await fetch(`${API_BASE_URL}/api/rooms/${joinRoomId.value.trim()}/join`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ playerId: userStore.playerId, nickname: nickname.value.trim() }),
   })

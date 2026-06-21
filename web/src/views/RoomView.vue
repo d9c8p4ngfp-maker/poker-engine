@@ -5,6 +5,7 @@ import { useWebSocket, setWsLogger } from '../composables/useWebSocket'
 import { useRoomStore } from '../stores/room'
 import { useUserStore } from '../stores/user'
 import { useLogger } from '../composables/useLogger'
+import { API_BASE_URL } from '../config'
 
 const logger = useLogger()
 setWsLogger({ logWsSend: logger.logWsSend, logWsRecv: logger.logWsRecv, logError: logger.logError })
@@ -41,8 +42,6 @@ const joinError = ref('')
 const joined = ref(false)
 const joining = ref(false)
 const addingBot = ref(false)
-const starting = ref(false)
-const startError = ref('')
 const localCountdown = ref(0)
 const showBustChoice = ref(false)
 const showLeaderboard = ref(false)
@@ -199,7 +198,7 @@ watch(connected, async (now) => {
     logger.logLifecycle('ws_reconnect');
     console.log('[RoomView] WebSocket reconnected, re-joining room')
     try {
-      await fetch(`/api/rooms/${roomId}/join`, {
+      await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: userStore.playerId, nickname: userStore.nickname }),
@@ -221,6 +220,7 @@ interface PlayerView {
   chips: number
   connected: boolean
   borrowCount?: number
+  owner?: boolean
 }
 
 interface SnapshotPayload {
@@ -349,7 +349,7 @@ function handleStartGame() {
 
 async function refreshRoom() {
   try {
-    const res = await fetch(`/api/rooms/${roomId}`)
+    const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`)
     if (res.ok) {
       const data: SnapshotPayload = await res.json()
       roomStore.roomId = data.roomId; roomStore.roomName = data.name
@@ -380,7 +380,7 @@ async function handleAddBot() {
   addingBot.value = true
   logger.logAction('add_bot', { roomId, currentCount: roomStore.players.length })
   try {
-    const res = await fetch(`/api/rooms/${roomId}/bots?count=1`, { method: 'POST' })
+    const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/bots?count=1`, { method: 'POST' })
     if (!res.ok) {
       alert('添加机器人失败')
     } else {
@@ -418,7 +418,7 @@ async function handleBorrow() {
   borrowing.value = true
   logger.logAction('borrow_chips', { roomId })
   try {
-    const res = await fetch(`/api/rooms/${roomId}/borrow`, {
+    const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/borrow`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId: userStore.playerId }),

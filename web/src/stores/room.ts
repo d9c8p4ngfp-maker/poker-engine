@@ -60,7 +60,7 @@ export const useRoomStore = defineStore('room', () => {
   const myHoleCards = ref<string[]>([])
   const winners = ref<{ playerId: string; handName: string; amount: number }[] | null>(null)
   const gameOver = ref(false)
-  const leaderboard = ref<{ playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number }[]>([])
+  const leaderboard = ref<{ playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number; netChips?: number }[]>([])
   const bustedPlayerIds = ref<string[]>([])
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
 

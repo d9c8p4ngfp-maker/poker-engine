@@ -1,6 +1,7 @@
 import { ref, readonly } from 'vue'
 import { Client, type IMessage } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
+import { API_BASE_URL } from '../config'
 
 const connected = ref(false)
 const lastMessage = ref<string | null>(null)
@@ -8,8 +9,13 @@ const lastMessage = ref<string | null>(null)
 let stompClient: Client | null = null
 
 function getWsUrl(): string {
-  const url = new URL('/ws', window.location.origin)
+  // 生产环境: 用 API_BASE_URL 构造完整 WebSocket 地址
+  // 本地开发: 用相对路径，走 Vite proxy
+  const base = API_BASE_URL || window.location.origin
+  const url = new URL('/ws', base)
   url.searchParams.set('playerId', userPlayerId)
+  // SockJS 需要完整 URL（含 http(s)://）
+  if (API_BASE_URL) return url.toString()
   return url.pathname + url.search
 }
 

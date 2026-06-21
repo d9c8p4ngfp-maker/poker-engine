@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 
 const props = defineProps<{
-  winners: { playerId: string; nickname: string; handName: string; amount: number }[]
-  leaderboard: { playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number }[]
+  winners: { playerId: string; nickname?: string; handName: string; amount: number }[]
+  leaderboard: { playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number; netChips?: number }[]
   bustedPlayerIds: string[]
 }>()
 
@@ -31,7 +30,7 @@ function getMedal(index: number) {
       <div v-if="winners && winners.length" class="space-y-1">
         <div class="text-xs" style="color: var(--color-text-muted)">最后一局赢家</div>
         <div v-for="w in winners" :key="w.playerId" class="text-sm font-bold" style="color: var(--color-primary)">
-          {{ w.nickname }} +{{ w.amount }} ({{ w.handName }})
+          {{ w.nickname ?? w.playerId }} +{{ w.amount }} ({{ w.handName }})
         </div>
       </div>
 

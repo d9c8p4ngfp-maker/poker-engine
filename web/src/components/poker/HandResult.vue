@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  winners: { playerId: string; nickname: string; handName: string; amount: number }[]
+  winners: { playerId: string; nickname?: string; handName: string; amount: number }[]
   isOwner: boolean
 }>()
 
@@ -20,7 +20,7 @@ defineEmits<{
 
       <div v-for="w in winners" :key="w.playerId" class="space-y-1">
         <div class="text-sm font-bold" style="color: var(--color-gold)">
-          {{ w.nickname }}
+          {{ w.nickname ?? w.playerId }}
         </div>
         <div class="text-xs" style="color: var(--color-text-muted)">
           {{ w.handName }}

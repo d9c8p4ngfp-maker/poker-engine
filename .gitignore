@@ -18,10 +18,6 @@ web/.vite/
 # Env
 .env
 
-# Cursor — track hooks + skills, ignore secrets + review output
-.cursor/hooks/mimo-review.conf
-.cursor/reviews/
-
 # Docs
 docs/
 

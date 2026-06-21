@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { API_BASE_URL } from '../config'
 import StepperControl from '../components/ui/StepperControl.vue'
 
 const router = useRouter()
@@ -21,7 +22,7 @@ onMounted(() => {
 async function handleCreate() {
   errorMsg.value = ''; creating.value = true
   try {
-    const res = await fetch('/api/rooms', {
+    const res = await fetch(`${API_BASE_URL}/api/rooms`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         roomName: name.value, ownerId: userStore.playerId, ownerNickname: userStore.nickname,

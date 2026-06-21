@@ -25,20 +25,19 @@ const props = defineProps<{
   showdown?: boolean
 }>()
 
-// Oval seat positions for 0–7 players (percentage-based, relative to table container).
-// seatIndex 0 always at bottom-center.
+// Seat positions mapped to the 8 chairs on the top-down tavern table background
+// Coordinates relative to the table container
 const SEAT_POSITIONS: { x: number; y: number }[] = [
-  { x: 50, y: 93 },   // seat 0  bottom-center
-  { x: 88, y: 78 },   // seat 1  bottom-right
-  { x: 95, y: 53 },   // seat 2  right
-  { x: 88, y: 25 },   // seat 3  top-right
-  { x: 50, y: 10 },   // seat 4  top
-  { x: 12, y: 25 },   // seat 5  top-left
-  { x:  5, y: 53 },   // seat 6  left
-  { x: 12, y: 78 },   // seat 7  bottom-left
+  { x: 22, y: 26 },   // seat 0 — top-left
+  { x: 42, y: 22 },   // seat 1 — top-center
+  { x: 59, y: 24 },   // seat 2 — top-right
+  { x: 14, y: 42 },   // seat 3 — mid-left
+  { x: 81, y: 44 },   // seat 4 — mid-right
+  { x: 27, y: 72 },   // seat 5 — bottom-left
+  { x: 47, y: 76 },   // seat 6 — bottom-center
+  { x: 67, y: 72 },   // seat 7 — bottom-right
 ]
 
-// Sort players by seatIndex and attach computed position
 const sortedPlayers = computed(() => {
   return [...props.players]
     .sort((a, b) => a.seatIndex - b.seatIndex)
@@ -61,13 +60,13 @@ const cardSlots = computed(() => {
 
 <template>
   <div
-    class="poker-table relative mx-auto w-full max-w-md aspect-[4/3] rounded-[50%] overflow-hidden"
-    style="background-color: var(--color-felt)"
+    class="poker-table relative mx-auto w-full max-w-lg aspect-[4/3] overflow-hidden"
+    style="image-rendering: pixelated;"
   >
-    <!-- Table border -->
-    <div class="absolute inset-2 rounded-[50%] border-4 border-opacity-20 border-white"></div>
+    <!-- Table felt overlay (semi-transparent to show background) -->
+    <div class="absolute inset-0 bg-black/20 rounded-lg"></div>
 
-    <!-- Player seats laid out around the oval -->
+    <!-- Player seats -->
     <div
       v-for="p in sortedPlayers"
       :key="p.playerId"
@@ -87,21 +86,22 @@ const cardSlots = computed(() => {
       />
     </div>
 
-    <!-- Community cards area (center of table) -->
+    <!-- Community cards center area -->
     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
       <div class="flex justify-center items-center gap-1">
         <div
           v-for="(card, i) in cardSlots"
           :key="i"
-          class="w-8 h-11 rounded border border-dashed border-white/20 flex items-center justify-center"
-          :class="card ? 'border-solid border-white/50' : ''"
+          class="w-8 h-11 rounded border border-dashed border-white/15 flex items-center justify-center"
+          :class="card ? 'border-solid border-white/30' : ''"
         >
           <PlayingCard v-if="card" :card="card" :face-up="true" size="sm" />
         </div>
       </div>
 
       <!-- Pot -->
-      <div class="text-center text-sm font-bold mt-1 px-2 py-0.5 rounded-full" style="color: var(--color-gold); background: rgba(0,0,0,0.4)">
+      <div class="text-center text-sm font-bold mt-1 px-2 py-0.5 rounded-full"
+        style="color: var(--color-gold); background: rgba(0,0,0,0.55); font-family: 'Press Start 2P', monospace; font-size: 8px;">
         🏆 {{ pot }}
       </div>
     </div>

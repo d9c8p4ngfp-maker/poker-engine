@@ -15,6 +15,7 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 25,
         myChips: 500,
+        currentBet: 0,
       },
     })
     const buttons = wrapper.findAll('button')
@@ -35,6 +36,7 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 15,
         myChips: 500,
+        currentBet: 0,
       },
     })
     expect(wrapper.text()).toContain('15')
@@ -52,11 +54,12 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 0,
         myChips: 500,
+        currentBet: 0,
       },
     })
-    expect(wrapper.text()).toContain('Fold')
-    expect(wrapper.text()).toContain('Check')
-    expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-test="btn-fold"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="btn-check"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="btn-fold"]').attributes('disabled')).toBeUndefined()
   })
 
   it('shows fold and call when must call', () => {
@@ -71,9 +74,10 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 0,
         myChips: 500,
+        currentBet: 0,
       },
     })
-    expect(wrapper.text()).toContain('Call 30')
+    expect(wrapper.text()).toContain('跟注 30')
   })
 
   it('shows bet input when can bet', () => {
@@ -88,9 +92,10 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 0,
         myChips: 500,
+        currentBet: 0,
       },
     })
-    expect(wrapper.text()).toContain('Bet')
+    expect(wrapper.text()).toContain('加注')
     const slider = wrapper.find('input[type="range"]')
     expect(slider.exists()).toBe(true)
   })
@@ -107,10 +112,11 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 0,
         myChips: 500,
+        currentBet: 0,
       },
     })
     await wrapper.find('[data-test="btn-fold"]').trigger('click')
-    expect(wrapper.emitted('action')?.[0]).toEqual([{ type: 'FOLD' }])
+    expect(wrapper.emitted('action')?.[0]).toEqual([{ type: 'FOLD', amount: 0 }])
   })
 
   it('caps bet amount to myChips', () => {
@@ -125,6 +131,7 @@ describe('ActionPanel', () => {
         minRaise: 20,
         timeLeftSec: 0,
         myChips: 100,
+        currentBet: 0,
       },
     })
     const slider = wrapper.find('input[type="range"]')

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import StepperControl from '../components/ui/StepperControl.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -18,6 +19,13 @@ const showPassword = ref(false)
 
 const errorMsg = ref('')
 const creating = ref(false)
+
+onMounted(() => {
+  const bgLayer = document.querySelector('.bg-layer') as HTMLElement
+  if (bgLayer) {
+    bgLayer.style.backgroundImage = "url('/image_166619076022279.png')"
+  }
+})
 
 async function handleCreate() {
   errorMsg.value = ''
@@ -55,80 +63,204 @@ async function handleCreate() {
 </script>
 
 <template>
-  <div class="min-h-screen p-4" style="background-color: var(--color-surface)">
-    <div class="max-w-sm mx-auto space-y-4">
-      <button @click="router.push('/')" class="text-sm" style="color: var(--color-text-muted)">
+  <div class="create-screen">
+    <div class="create-overlay"></div>
+
+    <div class="create-left-col">
+      <button
+        @click="router.push('/')"
+        class="create-back"
+        data-test="btn-back"
+      >
         ← 返回
       </button>
-      <h1 class="text-xl font-bold" style="color: var(--color-gold)">创建房间</h1>
+      <h1 class="create-title">创建房间</h1>
 
-      <div class="space-y-3 p-4 rounded-lg" style="background-color: var(--color-surface-light)">
-        <div>
-          <label class="block text-xs mb-1" style="color: var(--color-text-muted)">房间名称</label>
-          <input v-model="name" placeholder="房间名称..." maxlength="20"
-            class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-            style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-        </div>
-
-        <div class="flex gap-3">
-          <div class="flex-1">
-            <label class="block text-xs mb-1" style="color: var(--color-text-muted)">最大人数</label>
-            <input v-model.number="maxSeats" type="number" min="2" max="8"
-              class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-              style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-          </div>
-          <div class="flex-1">
-            <label class="block text-xs mb-1" style="color: var(--color-text-muted)">最小开局</label>
-            <input v-model.number="minPlayers" type="number" min="2" :max="maxSeats"
-              class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-              style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-          </div>
-        </div>
-
-        <div class="flex gap-3">
-          <div class="flex-1">
-            <label class="block text-xs mb-1" style="color: var(--color-text-muted)">小盲注</label>
-            <input v-model.number="smallBlind" type="number" min="1"
-              class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-              style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-          </div>
-          <div class="flex-1">
-            <label class="block text-xs mb-1" style="color: var(--color-text-muted)">初始筹码</label>
-            <input v-model.number="initialChips" type="number" min="100" step="100"
-              class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-              style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs mb-1" style="color: var(--color-text-muted)">超时(秒)</label>
-          <input v-model.number="actionTimeout" type="number" min="10" max="120"
-            class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-            style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-        </div>
-
-        <label class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted)">
-          <input v-model="bustEndsGame" type="checkbox" checked />
-          淘汰出局：有人输光筹码则比赛结束，筹码最多者获胜
-        </label>
-
-        <div class="space-y-2">
-          <label class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted)">
-            <input v-model="showPassword" type="checkbox" /> 设置房间密码
-          </label>
-          <input v-if="showPassword" v-model="password" type="password" placeholder="房间密码..."
-            class="w-full px-3 py-2 rounded text-white text-sm outline-none"
-            style="background-color: var(--color-surface); border: 1px solid var(--color-text-muted)" />
-        </div>
+      <!-- Room name -->
+      <div class="create-input-group">
+        <label class="create-label">房间名称</label>
+        <input
+          v-model="name"
+          placeholder="房间名称..."
+          maxlength="20"
+          class="create-input"
+        />
       </div>
 
-      <p v-if="errorMsg" class="text-sm text-red-400">{{ errorMsg }}</p>
+      <!-- Stepper fields -->
+      <div class="create-steppers">
+        <StepperControl v-model="maxSeats" :min="2" :max="8" label="最大人数" />
+        <StepperControl v-model="minPlayers" :min="2" :max="maxSeats" label="最小开局" />
+        <StepperControl v-model="smallBlind" :min="1" :max="100" :step="5" label="小盲注" />
+        <StepperControl v-model="initialChips" :min="100" :max="10000" :step="100" label="初始筹码" />
+        <StepperControl v-model="actionTimeout" :min="10" :max="120" :step="5" label="超时(秒)" />
+      </div>
 
-      <button @click="handleCreate" :disabled="creating"
-        class="w-full py-4 rounded-lg font-bold text-white text-lg transition"
-        :style="{ backgroundColor: creating ? '#666' : 'var(--color-primary)' }">
+      <!-- Bust checkbox -->
+      <label class="create-checkbox">
+        <input v-model="bustEndsGame" type="checkbox" />
+        淘汰出局：有人输光筹码则比赛结束
+      </label>
+
+      <!-- Password -->
+      <div class="create-password-section">
+        <label class="create-checkbox">
+          <input v-model="showPassword" type="checkbox" /> 设置房间密码
+        </label>
+        <input
+          v-if="showPassword"
+          v-model="password"
+          type="password"
+          placeholder="房间密码..."
+          class="create-input"
+        />
+      </div>
+
+      <!-- Error -->
+      <p v-if="errorMsg" class="create-error">{{ errorMsg }}</p>
+
+      <!-- Submit -->
+      <button
+        @click="handleCreate"
+        :disabled="creating"
+        data-test="btn-submit"
+        class="create-submit"
+        :style="{ opacity: creating ? 0.7 : 1 }"
+      >
         {{ creating ? '创建中...' : '创建房间' }}
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.create-screen {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+.create-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(30, 16, 6, 0.55), transparent 55%);
+  pointer-events: none;
+}
+
+.create-left-col {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(460px, 35%);
+  min-width: 300px;
+}
+
+.create-back {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: rgba(224, 176, 48, 0.45);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+}
+
+.create-back:hover {
+  color: rgba(224, 176, 48, 0.7);
+}
+
+.create-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--color-gold);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 0;
+}
+
+.create-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.create-label {
+  font-size: 9px;
+  color: rgba(224, 176, 48, 0.6);
+}
+
+.create-input {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-light);
+  outline: none;
+  letter-spacing: 1px;
+}
+
+.create-input:focus {
+  border-color: var(--color-gold);
+}
+
+.create-steppers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: rgba(224, 176, 48, 0.55);
+  cursor: pointer;
+}
+
+.create-checkbox input[type="checkbox"] {
+  accent-color: var(--color-gold);
+}
+
+.create-password-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-error {
+  font-size: 9px;
+  color: var(--color-accent);
+}
+
+.create-submit {
+  font-family: 'Press Start 2P', monospace;
+  font-weight: bold;
+  font-size: 16px;
+  padding: 16px 36px;
+  background: var(--color-primary);
+  color: var(--color-text);
+  border: 3px solid var(--color-button-shadow);
+  border-radius: 8px;
+  box-shadow: var(--shadow-button);
+  cursor: pointer;
+  transition: all 0.12s;
+  letter-spacing: 2px;
+}
+
+.create-submit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (max-width: 700px) {
+  .create-title { font-size: 22px; }
+  .create-submit { font-size: 12px; padding: 12px 24px; }
+  .create-left-col { width: 100%; min-width: unset; }
+}
+</style>

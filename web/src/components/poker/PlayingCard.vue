@@ -36,7 +36,8 @@ const sizeClass = computed(() => {
 
 <template>
   <div
-    class="card inline-flex items-center justify-center rounded-md font-bold select-none"
+    class="card inline-flex items-center justify-center font-bold select-none"
+    :style="{ imageRendering: 'pixelated' }"
     :class="[
       size === 'sm' ? 'w-7 h-10' : size === 'lg' ? 'w-14 h-20' : 'w-10 h-14',
       size === 'sm' ? 'rounded-sm' : 'rounded-md',
@@ -45,10 +46,10 @@ const sizeClass = computed(() => {
     <div
       v-if="!showFace"
       data-test="card-back"
-      class="w-full h-full rounded-md flex items-center justify-center"
-      style="background-color: var(--color-card-back)"
+      class="w-full h-full rounded-md flex items-center justify-center border-2 shadow-sm"
+      style="background-color: var(--color-card-back); border-color: rgba(255,255,255,0.08);"
     >
-      <span class="text-xs opacity-30">♠♥♦♣</span>
+      <span class="text-xs opacity-30" style="color: var(--color-text-light)">♠♥♦♣</span>
     </div>
     <div
       v-else
@@ -58,6 +59,7 @@ const sizeClass = computed(() => {
         isRed ? 'text-red-600' : 'text-black',
         sizeClass,
       ]"
+      style="font-family: serif;"
     >
       <span class="leading-tight">{{ rank }}</span>
       <span class="leading-tight">{{ suitSymbol }}</span>

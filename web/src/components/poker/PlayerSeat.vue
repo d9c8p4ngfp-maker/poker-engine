@@ -19,12 +19,12 @@ const props = defineProps<{
 <template>
   <div
     data-test="seat"
-    class="player-seat flex flex-col items-center gap-1 p-1 rounded-lg border-2 transition-all"
+    class="player-seat flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all"
     :class="[
-      isCurrentPlayer ? 'border-yellow-400 shadow-lg shadow-yellow-400/20' : 'border-transparent',
+      isCurrentPlayer ? 'border-yellow-400 shadow-lg shadow-yellow-400/30 scale-110' : 'border-transparent',
       folded ? 'opacity-40' : '',
     ]"
-    style="background-color: var(--color-surface-light)"
+    style="background-color: var(--color-panel-bg)"
   >
     <!-- Dealer badge -->
     <div v-if="isDealer" class="text-xs px-1.5 rounded-full font-bold bg-yellow-500 text-black">D</div>
@@ -45,23 +45,24 @@ const props = defineProps<{
     <!-- Nickname -->
     <span
       class="text-xs font-bold truncate max-w-[80px]"
-      :class="isMe ? 'text-yellow-400' : 'text-white'"
+      :class="isMe ? 'text-yellow-400' : ''"
+      :style="{ color: isMe ? 'var(--color-gold)' : 'var(--color-text-light)', fontFamily: '\'Press Start 2P\', monospace', fontSize: '7px' }"
     >
       {{ nickname }}
     </span>
 
     <!-- Chips -->
-    <span class="text-xs" style="color: var(--color-gold)">💰{{ chips }}</span>
+    <span class="text-xs" style="color: var(--color-gold); font-family: 'Press Start 2P', monospace; font-size: 7px;">💰{{ chips }}</span>
 
     <!-- Current bet -->
-    <span v-if="betInRound > 0" class="text-xs px-1.5 rounded-full" style="background-color: var(--color-primary)">
+    <span v-if="betInRound > 0" class="text-xs px-1.5 rounded-full" style="background-color: var(--color-primary); color: var(--color-text); font-size: 7px;">
       下注 {{ betInRound }}
     </span>
 
     <!-- Folded -->
-    <div v-if="folded" data-test="folded" class="text-xs text-gray-500 font-bold">FOLD</div>
+    <div v-if="folded" data-test="folded" class="text-xs text-gray-500 font-bold" style="font-family: 'Press Start 2P', monospace; font-size: 7px;">FOLD</div>
 
     <!-- All-in -->
-    <div v-if="allIn" class="text-xs text-red-400 font-bold animate-pulse">ALL IN</div>
+    <div v-if="allIn" class="text-xs text-red-400 font-bold animate-pulse" style="font-family: 'Press Start 2P', monospace; font-size: 7px;">ALL IN</div>
   </div>
 </template>

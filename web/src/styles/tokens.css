@@ -1,26 +1,34 @@
 @import "tailwindcss";
 
 :root {
-  /* 设计 Token - 后续主题扩展基础 */
-  --color-primary: #1a7f37;
-  --color-primary-dark: #156b2d;
-  --color-surface: #1a1a2e;
-  --color-surface-light: #16213e;
-  --color-text: #e0e0e0;
-  --color-text-muted: #a0a0a0;
-  --color-accent: #e94560;
-  --color-gold: #ffd700;
-  --color-felt: #0d6b2e;
+  /* Pixel Tavern Warm Palette */
+  --color-primary: #c89860;
+  --color-primary-dark: #a07048;
+  --color-surface: #f0e0c8;
+  --color-surface-light: rgba(240, 224, 200, 0.85);
+  --color-surface-dark: #e0ccb0;
+  --color-wood-dark: #684028;
+  --color-text: #382818;
+  --color-text-muted: #887868;
+  --color-text-light: #f0e0c8;
+  --color-accent: #c04030;
+  --color-gold: #e0b030;
+  --color-felt: #409048;
   --color-card-bg: #ffffff;
   --color-card-back: #1a3a5c;
+  --color-panel-bg: rgba(40, 20, 8, 0.72);
+  --color-panel-border: #684028;
+  --color-input-bg: rgba(20, 10, 4, 0.5);
+  --color-button-shadow: #684028;
+  --color-border: rgba(104, 64, 40, 0.4);
 
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 16px;
   --radius-full: 9999px;
 
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-button: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-button: 0 3px 0 var(--color-button-shadow), 0 4px 10px rgba(0, 0, 0, 0.15);
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -31,6 +39,12 @@
 
   --transition-fast: 150ms ease;
   --transition-normal: 300ms ease;
+
+  /* iPhone safe area */
+  --safe-top: 40px;
+  --safe-bottom: 40px;
+  --safe-left: 60px;
+  --safe-right: 40px;
 }
 
 * {
@@ -40,7 +54,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Press Start 2P', monospace;
   background-color: var(--color-surface);
   color: var(--color-text);
   min-height: 100vh;

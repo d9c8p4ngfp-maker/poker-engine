@@ -22,12 +22,18 @@ const userStore = useUserStore()
 const { connect, disconnect, subscribe, send, connected } = useWebSocket(userStore.playerId)
 const roomStore = useRoomStore()
 
-// Watch status transitions for logging
 let prevStatus = ''
 watch(() => roomStore.status, (newStatus) => {
   if (newStatus !== prevStatus) {
     logger.logState('status_change', { from: prevStatus, to: newStatus, playerCount: roomStore.players.length })
     prevStatus = newStatus
+  }
+})
+
+onMounted(() => {
+  const bgLayer = document.querySelector('.bg-layer') as HTMLElement
+  if (bgLayer) {
+    bgLayer.style.backgroundImage = "url('/image_166587658107119.png')"
   }
 })
 
@@ -42,12 +48,10 @@ const showBustChoice = ref(false)
 const showLeaderboard = ref(false)
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
-// Init on mount: if came from home page (already joined), auto-connect
 onMounted(async () => {
   logger.logLifecycle('mounted')
   joining.value = true
 
-  // Allow re-entry by room URL even without previous Pinia state
   if (!userStore.nickname) {
     userStore.currentRoomId = localStorage.getItem('poker_room_id') || ''
     const savedNick = localStorage.getItem('poker_nickname')
@@ -121,14 +125,12 @@ onMounted(async () => {
 
   subscribe(`/topic/room/${roomId}/game`, (msg) => {
     const data = JSON.parse(msg.body)
-    // Game over: has both winners and leaderboard
     if (data.leaderboard) {
       logger.logState('game_over', { leaderboard: data.leaderboard.length, busted: data.bustedPlayerIds?.length })
       showBustChoice.value = false
       roomStore.setGameOver(data)
       return
     }
-    // Server-side error broadcast
     if (data.error) {
       logger.logError('server_error_broadcast', data.error)
       console.error('[Game Error]', data.error)
@@ -136,25 +138,21 @@ onMounted(async () => {
       stopCountdown()
       return
     }
-    // Winners broadcast: only update winners
     if (data.winners) {
       logger.logState('hand_complete_winners', { count: data.winners.length })
       stopCountdown()
       roomStore.winners = data.winners
     } else {
-      // New game state snapshot — clear previous game-over / leaderboard state
       roomStore.winners = null
       roomStore.gameOver = false
       roomStore.leaderboard = []
       roomStore.bustedPlayerIds = []
       roomStore.updateFromSnapshot(data, userStore.playerId)
     }
-    // Start/stop countdown on state changes (purely visual)
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
   })
 
-  // Player-specific subscription: receives my hole cards
   subscribe(`/topic/player/${userStore.playerId}/game`, (msg) => {
     const data = JSON.parse(msg.body)
     if (data.type === 'bust_choice') {
@@ -167,13 +165,12 @@ onMounted(async () => {
       stopCountdown()
       return
     }
-    if (data.winners) return // winners handled by public channel
+    if (data.winners) return
     roomStore.updateFromSnapshot(data, userStore.playerId)
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
   })
 
-  // Fetch room state (GET, idempotent)
   await refreshRoom()
   if (roomStore.roomId) {
     logger.logState('room_joined', { roomId, playerCount: roomStore.players.length })
@@ -185,8 +182,17 @@ onMounted(async () => {
   joining.value = false
 })
 
-// Reconnect detection: when WebSocket reconnects, re-join the room
-// to trigger onReconnect on the server (restores ACTIVE status, cancels grace timer)
+// Watch for status change to switch background to game table
+watch(() => roomStore.status, (newStatus) => {
+  const bgLayer = document.querySelector('.bg-layer') as HTMLElement
+  if (!bgLayer) return
+  if (newStatus === 'PLAYING' || newStatus === 'FINISHED') {
+    bgLayer.style.backgroundImage = "url('/image_166619076022278.png')"
+  } else {
+    bgLayer.style.backgroundImage = "url('/image_166587658107119.png')"
+  }
+})
+
 let wasConnected = false
 watch(connected, async (now) => {
   if (now && !wasConnected && joined.value) {
@@ -227,13 +233,8 @@ interface SnapshotPayload {
   dealerIndex: number
 }
 
-// Derived state
 const isMyTurn = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
-  // Use currentPlayerId (directly sent by backend) rather than indexing
-  // into the players array. The backend's currentPlayerIndex refers to
-  // the game-engine-internal player list, which may be ordered differently
-  // from the room-based players array sent in the snapshot.
   if (!roomStore.currentPlayerId) return false
   return roomStore.currentPlayerId === userStore.playerId
 })
@@ -246,14 +247,12 @@ const isOwner = computed(() => {
   return roomStore.players.some(p => p.owner && p.playerId === userStore.playerId)
 })
 
-/** True when I'm in the room but excluded from the current hand (0 chips at game start). */
 const isSpectating = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
   const me = myPlayer.value
   return !!(me && (me as any).inGame === false)
 })
 
-/** True when I'm all-in during a hand — chips committed, waiting for result. */
 const isAllIn = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
   const me = myPlayer.value
@@ -263,10 +262,8 @@ const isAllIn = computed(() => {
 const canStart = computed(() => {
   if (roomStore.status !== 'WAITING') return false
   if (roomStore.players.length < 2) return false
-  // Owner must have chips to participate
   const owner = roomStore.players.find(p => p.owner)
   if (!owner || owner.chips <= 0) return false
-  // At least 2 players must have chips to start
   const withChips = roomStore.players.filter(p => p.chips > 0).length
   return withChips >= 2
 })
@@ -281,7 +278,6 @@ const startBlockReason = computed(() => {
   return ''
 })
 
-// Table player data
 const tablePlayers = computed(() => {
   return roomStore.players.map(p => ({
     playerId: p.playerId,
@@ -298,7 +294,6 @@ const tablePlayers = computed(() => {
   }))
 })
 
-// Action legality
 const legalActions = computed(() => {
   if (!isMyTurn.value || !myPlayer.value) {
     return { canCheck: false, canCall: false, canBet: false, canRaise: false, callAmount: 0 }
@@ -314,7 +309,6 @@ const legalActions = computed(() => {
   }
 })
 
-// Client-side countdown — purely visual, real timeout handled server-side by GameTimeoutScheduler
 function startCountdown() {
   stopCountdown()
   localCountdown.value = 30
@@ -390,7 +384,6 @@ async function handleAddBot() {
     if (!res.ok) {
       alert('添加机器人失败')
     } else {
-      // Refresh UI to show the new bot
       await refreshRoom()
     }
   } catch (e) {
@@ -416,7 +409,6 @@ function handleBackToRoom() {
   roomStore.leaderboard = []
   roomStore.bustedPlayerIds = []
   roomStore.status = 'WAITING'
-  // Refresh room state to get latest player chips etc.
   refreshRoom()
 }
 
@@ -447,10 +439,8 @@ async function handleBorrow() {
 async function handleBustSpectate() {
   logger.logAction('bust_spectate', { roomId })
   showBustChoice.value = false
-  // Player chose to spectate — game continues, auto-fold on next turn
 }
 
-// Leaderboard computed
 const leaderboard = computed(() => {
   return [...roomStore.players]
     .sort((a, b) => {
@@ -480,48 +470,37 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col" style="background-color: var(--color-surface)">
-    <!-- Header -->
-    <div class="p-4 flex items-center justify-between" style="background-color: var(--color-surface-light)">
-      <button @click="handleLeave" class="text-sm" style="color: var(--color-text-muted)">
-        ← 退出
-      </button>
-      <button @click="logger.download()" class="text-xs px-2 py-1 rounded" style="color: var(--color-text-muted); border: 1px solid var(--color-border);" title="下载操作日志 JSON">
-        📋 日志
-      </button>
-      <div class="text-center">
-        <div class="font-bold" style="color: var(--color-gold)">{{ roomStore.roomName || '房间' }}</div>
-        <div class="text-xs" style="color: var(--color-text-muted)">
-          房间号: <span class="tracking-widest font-mono">{{ roomId }}</span>
-        </div>
-      </div>
-      <button
-        class="text-sm font-bold px-2 py-1 rounded"
-        style="color: var(--color-gold); background-color: var(--color-surface)"
-        @click="showLeaderboard = !showLeaderboard; logger.logAction('toggle_leaderboard', { visible: showLeaderboard })"
-      >
-        🏆 排行
-      </button>
-    </div>
-
+  <div class="room-screen">
     <!-- Connecting / Error state -->
-    <div v-if="!joined" class="flex-1 p-6 flex flex-col items-center justify-center space-y-4">
-      <div v-if="joining" class="text-center">
-        <div class="text-lg" style="color: var(--color-text-muted)">正在连接...</div>
-      </div>
+    <div v-if="!joined" class="room-join-state">
+      <div v-if="joining" class="text-lg" style="color: var(--color-text-muted)">正在连接...</div>
       <div v-else-if="joinError" class="text-center space-y-3">
-        <div style="color: var(--color-accent)">{{ joinError }}</div>
-        <button @click="handleLeave" class="px-6 py-2 rounded-lg" style="background-color: var(--color-primary); color: white">
+        <div style="color: var(--color-accent); font-family: 'Press Start 2P', monospace; font-size: 9px;">{{ joinError }}</div>
+        <button @click="handleLeave" class="btn-back">
           返回首页
         </button>
       </div>
     </div>
 
-    <!-- Game Content (shown after join) -->
-    <div v-if="joined" class="flex-1 flex flex-col">
-      <!-- PLAYING state: Poker Table -->
-      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED'" class="flex-1 flex flex-col relative">
-        <div class="flex-1 p-2">
+    <div v-if="joined" class="room-content">
+      <!-- PLAYING / FINISHED: Full-screen table overlay -->
+      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED'" class="room-game-view">
+        <!-- Top info bar -->
+        <div class="game-top-bar">
+          <div class="game-room-info">
+            <span class="game-room-name">{{ roomStore.roomName || '房间' }}</span>
+            <span class="game-blinds">盲注 {{ roomStore.smallBlind }}/{{ roomStore.bigBlind }}</span>
+          </div>
+          <div class="game-meta">
+            <span class="game-phase">{{ roomStore.status === 'FINISHED' ? '摊牌' : '进行中' }}</span>
+            <span v-if="localCountdown > 0" class="game-countdown" :class="{ 'urgent': localCountdown <= 5 }">
+              {{ localCountdown }}s
+            </span>
+          </div>
+        </div>
+
+        <!-- Table area -->
+        <div class="game-table-area">
           <PokerTable
             :players="tablePlayers"
             :community-cards="roomStore.communityCards"
@@ -533,40 +512,33 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Spectating: player excluded from this hand (0 chips at game start) -->
-        <div v-if="isSpectating" class="text-center py-3 px-4 space-y-2">
-          <div class="text-sm font-bold" style="color: var(--color-text-muted)">👀 观战中 — 你未参与此局</div>
-          <button
-            class="w-full py-2 rounded-lg font-bold text-sm transition active:scale-95"
-            style="background-color: var(--color-accent); color: white"
-            @click="handleBorrow"
-            :disabled="borrowing"
-          >
-            {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
-          </button>
-          <div class="text-xs" style="color: var(--color-text-muted)">下一局生效</div>
+        <!-- Action area -->
+        <div class="game-action-area">
+          <div v-if="isSpectating" class="text-center py-2 space-y-2">
+            <div class="text-xs" style="color: var(--color-text-muted); font-family: 'Press Start 2P', monospace; font-size: 8px;">👀 观战中 — 你未参与此局</div>
+            <button class="btn-borrow" @click="handleBorrow" :disabled="borrowing">
+              {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
+            </button>
+          </div>
+          <div v-else-if="isAllIn" class="text-center py-2">
+            <div style="color: var(--color-gold); font-family: 'Press Start 2P', monospace; font-size: 9px;">🔥 全押! 等待结果...</div>
+          </div>
+          <ActionPanel
+            v-else-if="!roomStore.gameOver"
+            :is-my-turn="isMyTurn"
+            :can-check="legalActions.canCheck"
+            :can-call="legalActions.canCall"
+            :can-bet="legalActions.canBet"
+            :can-raise="legalActions.canRaise"
+            :call-amount="legalActions.callAmount"
+            :min-raise="roomStore.bigBlind"
+            :current-bet="roomStore.currentBet"
+            :time-left-sec="localCountdown || roomStore.timeLeftSec"
+            :my-chips="myPlayer?.chips || 0"
+            @action="handleAction"
+          />
         </div>
-        <!-- All-in: my chips are committed to this hand, waiting for result -->
-        <div v-else-if="isAllIn" class="text-center py-3 px-4 space-y-1">
-          <div class="text-sm font-bold" style="color: var(--color-gold)">🔥 全押! 等待结果...</div>
-          <div class="text-xs" style="color: var(--color-text-muted)">你的筹码已全部投入此局</div>
-        </div>
-        <ActionPanel
-          v-else-if="!roomStore.gameOver"
-          :is-my-turn="isMyTurn"
-          :can-check="legalActions.canCheck"
-          :can-call="legalActions.canCall"
-          :can-bet="legalActions.canBet"
-          :can-raise="legalActions.canRaise"
-          :call-amount="legalActions.callAmount"
-          :min-raise="roomStore.bigBlind"
-          :current-bet="roomStore.currentBet"
-          :time-left-sec="localCountdown || roomStore.timeLeftSec"
-          :my-chips="myPlayer?.chips || 0"
-          @action="handleAction"
-        />
 
-        <!-- Hand Result Overlay -->
         <HandResult
           v-if="roomStore.winners && !roomStore.gameOver"
           :winners="roomStore.winners"
@@ -574,7 +546,6 @@ onUnmounted(() => {
           @next-hand="handleNextHand"
         />
 
-        <!-- Bust Choice Popup (personal, hidden when game over) -->
         <BustChoice
           v-if="showBustChoice && !roomStore.gameOver"
           :player-id="userStore.playerId"
@@ -583,88 +554,93 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- WAITING state -->
-      <div v-else class="flex-1 p-4 space-y-4">
-        <div class="text-center py-2 rounded-lg" style="background-color: var(--color-surface-light)">
-          <span class="text-sm" style="color: var(--color-text-muted)">
-            状态: 等待玩家加入...
-          </span>
-          <span class="ml-2 text-sm" style="color: var(--color-text-muted)">
-            {{ roomStore.players?.length || 0 }}/{{ roomStore.maxSeats }}人
-          </span>
-          <span class="ml-2 text-sm" style="color: var(--color-text-muted)">
-            盲注 {{ roomStore.smallBlind }}/{{ roomStore.bigBlind }}
-          </span>
-        </div>
-
-        <!-- Players List -->
-        <div class="space-y-2">
-          <div class="text-sm font-bold" style="color: var(--color-text-muted)">玩家</div>
-          <div
-            v-for="player in roomStore.players"
-            :key="player.playerId"
-            class="flex items-center justify-between p-3 rounded-lg"
-            :style="{
-              backgroundColor: player.playerId === userStore.playerId ? 'var(--color-primary)' : 'var(--color-surface-light)',
-              opacity: player.connected ? 1 : 0.5
-            }"
-          >
-            <div class="flex items-center gap-2">
-              <span class="text-lg">{{ player.seatIndex === 0 ? '👑' : '💺' }}</span>
-              <span class="font-bold text-white">{{ player.nickname }}</span>
-              <span v-if="player.playerId === userStore.playerId" class="text-xs" style="color: var(--color-gold)">(你)</span>
-            </div>
-            <span class="text-sm" style="color: var(--color-gold)">
-              💰 {{ player.chips }}
-              <span v-if="(player.borrowCount || 0) > 0" class="text-xs" style="color: var(--color-accent)">
-                (净: {{ player.chips - (player.borrowCount || 0) * roomStore.initialChips }})
-              </span>
-            </span>
+      <!-- WAITING: Left-column lobby -->
+      <div v-else class="room-waiting-view">
+        <div class="room-overlay"></div>
+        <div class="room-left-col">
+          <!-- Header -->
+          <div class="room-header">
+            <button @click="handleLeave" class="room-link-btn">← 退出</button>
+            <button
+              class="room-link-btn"
+              @click="showLeaderboard = !showLeaderboard; logger.logAction('toggle_leaderboard', { visible: showLeaderboard })"
+            >
+              🏆 排行
+            </button>
           </div>
-        </div>
 
-        <!-- Share hint -->
-        <div class="text-center text-xs mt-4" style="color: var(--color-text-muted)">
-          分享房间号 <span class="font-mono tracking-widest" style="color: var(--color-gold)">{{ roomId }}</span> 给朋友即可加入
-        </div>
+          <h1 class="room-title">{{ roomStore.roomName || '房间' }}</h1>
 
-        <!-- Add Bot Button -->
-        <button
-          v-if="(roomStore.players?.length || 0) < roomStore.maxSeats"
-          class="w-full py-3 rounded-lg font-bold text-white text-base transition active:scale-95 mt-4"
-          style="background-color: var(--color-surface-light); border: 1px solid var(--color-primary)"
-          @click="handleAddBot"
-          :disabled="addingBot"
-        >
-          {{ addingBot ? '添加中...' : '+ 添加一个机器人' }}
-        </button>
+          <!-- Room info chips -->
+          <div class="room-info-row">
+            <span class="room-info-chip">🃏 {{ roomId }}</span>
+            <span class="room-info-chip">👤 {{ roomStore.players?.length || 0 }}/{{ roomStore.maxSeats }}</span>
+            <span class="room-info-chip">盲注 {{ roomStore.smallBlind }}/{{ roomStore.bigBlind }}</span>
+          </div>
 
-        <!-- Borrow Chips Button (for busted players) -->
-        <button
-          v-if="(myPlayer?.chips ?? 0) <= 0"
-          class="w-full py-3 rounded-lg font-bold text-base transition active:scale-95 mt-4"
-          style="background-color: var(--color-accent); color: white"
-          @click="handleBorrow"
-          :disabled="borrowing"
-        >
-          {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
-        </button>
+          <!-- Player list -->
+          <div class="room-player-list">
+            <div class="room-list-header">玩家</div>
+            <div
+              v-for="player in roomStore.players"
+              :key="player.playerId"
+              class="room-player-item"
+              :class="{ 'is-me': player.playerId === userStore.playerId, 'is-disconnected': !player.connected }"
+            >
+              <div class="room-player-left">
+                <span class="room-player-icon">{{ player.seatIndex === 0 ? '👑' : '💺' }}</span>
+                <span class="room-player-name">{{ player.nickname }}</span>
+                <span v-if="player.playerId === userStore.playerId" class="room-player-you">(你)</span>
+              </div>
+              <div class="room-player-right">
+                <span class="room-player-chips">💰 {{ player.chips }}</span>
+                <span v-if="(player.borrowCount || 0) > 0" class="room-player-net">
+                  (净: {{ player.chips - (player.borrowCount || 0) * roomStore.initialChips }})
+                </span>
+              </div>
+            </div>
+          </div>
 
-        <!-- Start Button -->
-        <button
-          v-if="isOwner && canStart"
-          class="w-full py-4 rounded-lg font-bold text-white text-lg transition active:scale-95 mt-4"
-          style="background-color: var(--color-primary)"
-          @click="handleStartGame"
-        >
-          开始游戏
-        </button>
-        <div v-else-if="isOwner && !canStart" class="text-center text-sm mt-4" style="color: var(--color-text-muted)">
-          {{ startBlockReason }}
+          <!-- Share hint -->
+          <div class="room-share-hint">
+            分享房间号 <span class="room-id-highlight">{{ roomId }}</span> 给朋友
+          </div>
+
+          <!-- Add bot -->
+          <button
+            v-if="(roomStore.players?.length || 0) < roomStore.maxSeats"
+            class="room-btn room-btn-secondary"
+            @click="handleAddBot"
+            :disabled="addingBot"
+          >
+            {{ addingBot ? '添加中...' : '+ 添加机器人' }}
+          </button>
+
+          <!-- Borrow -->
+          <button
+            v-if="(myPlayer?.chips ?? 0) <= 0"
+            class="room-btn room-btn-accent"
+            @click="handleBorrow"
+            :disabled="borrowing"
+          >
+            {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
+          </button>
+
+          <!-- Start -->
+          <button
+            v-if="isOwner && canStart"
+            class="room-btn room-btn-primary"
+            @click="handleStartGame"
+          >
+            开始游戏
+          </button>
+          <div v-else-if="isOwner && !canStart" class="room-start-hint">
+            {{ startBlockReason }}
+          </div>
         </div>
       </div>
 
-      <!-- Game Over Overlay (outside PLAYING/WAITING areas so it stays visible regardless of status) -->
+      <!-- Game Over -->
       <GameOver
         v-if="roomStore.gameOver"
         :winners="roomStore.winners || []"
@@ -675,41 +651,382 @@ onUnmounted(() => {
     </div>
 
     <!-- Leaderboard Modal -->
-    <div v-if="showLeaderboard" class="fixed inset-0 z-30 flex items-center justify-center bg-black/60 px-4" @click.self="showLeaderboard = false">
-      <div
-        class="w-full max-w-xs rounded-xl p-5 space-y-3"
-        style="background-color: var(--color-surface-light)"
-      >
-        <div class="flex items-center justify-between">
-          <div class="text-lg font-bold" style="color: var(--color-gold)">🏆 排行榜</div>
-          <button @click="showLeaderboard = false" class="text-sm" style="color: var(--color-text-muted)">✕</button>
+    <div v-if="showLeaderboard" class="room-modal-overlay" @click.self="showLeaderboard = false">
+      <div class="room-modal">
+        <div class="room-modal-header">
+          <div class="room-modal-title">🏆 排行榜</div>
+          <button @click="showLeaderboard = false" class="room-link-btn">✕</button>
         </div>
         <div class="space-y-1">
           <div
             v-for="entry in leaderboard"
             :key="entry.playerId"
-            class="flex items-center gap-3 p-2 rounded-lg"
-            :style="{
-              backgroundColor: entry.rank === 1 ? 'rgba(255,215,0,0.12)' : 'var(--color-surface)',
-              border: entry.rank === 1 ? '1px solid var(--color-gold)' : '1px solid transparent'
-            }"
+            class="room-leader-item"
+            :class="{ 'is-first': entry.rank === 1 }"
           >
-            <span class="w-7 text-center font-bold text-sm" :style="{ color: entry.rank <= 3 ? 'var(--color-gold)' : 'var(--color-text-muted)' }">
+            <span class="room-leader-rank">
               {{ entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}` }}
             </span>
-            <span class="flex-1 text-sm font-bold text-white">
+            <span class="room-leader-name">
               {{ entry.nickname }}
-              <span v-if="entry.playerId === userStore.playerId" class="text-xs" style="color: var(--color-gold)">(你)</span>
+              <span v-if="entry.playerId === userStore.playerId" class="room-player-you">(你)</span>
             </span>
-            <span class="text-sm font-mono font-bold" :style="{ color: (entry.netChips ?? 0) >= 0 ? 'var(--color-gold)' : 'var(--color-accent)' }">
+            <span class="room-leader-chips" :class="{ 'positive': entry.netChips >= 0, 'negative': entry.netChips < 0 }">
               {{ entry.netChips != null ? (entry.netChips >= 0 ? '+' + entry.netChips : String(entry.netChips)) : entry.chips }}
             </span>
-          </div>
-          <div v-if="leaderboard.length === 0" class="text-center text-sm py-4" style="color: var(--color-text-muted)">
-            暂无玩家
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.room-screen {
+  position: relative;
+  min-height: 100vh;
+  font-family: 'Press Start 2P', monospace;
+}
+
+/* === Connecting === */
+.room-join-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.room-content {
+  min-height: 100vh;
+}
+
+/* === Waiting lobby === */
+.room-waiting-view {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+.room-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(30, 16, 6, 0.55), transparent 55%);
+  pointer-events: none;
+}
+
+.room-left-col {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, 35%);
+  min-width: 300px;
+}
+
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.room-link-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: rgba(224, 176, 48, 0.45);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.room-link-btn:hover { color: rgba(224, 176, 48, 0.7); }
+
+.room-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: var(--color-gold);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 0;
+}
+
+.room-info-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.room-info-chip {
+  font-size: 7px;
+  padding: 4px 8px;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-light);
+}
+
+.room-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.room-list-header {
+  font-size: 8px;
+  color: rgba(224, 176, 48, 0.5);
+  margin-bottom: 2px;
+}
+
+.room-player-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+}
+.room-player-item.is-me {
+  border-color: var(--color-gold);
+}
+.room-player-item.is-disconnected {
+  opacity: 0.5;
+}
+
+.room-player-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-player-icon { font-size: 14px; }
+.room-player-name {
+  font-size: 8px;
+  color: var(--color-text-light);
+}
+.room-player-you {
+  font-size: 7px;
+  color: var(--color-gold);
+}
+
+.room-player-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.room-player-chips {
+  font-size: 8px;
+  color: var(--color-gold);
+}
+.room-player-net {
+  font-size: 7px;
+  color: var(--color-accent);
+}
+
+.room-share-hint {
+  font-size: 7px;
+  color: rgba(224, 176, 48, 0.4);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.room-id-highlight {
+  color: var(--color-gold);
+}
+
+.room-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-weight: bold;
+  font-size: 10px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.1s;
+  letter-spacing: 1px;
+  border-width: 2px;
+  border-style: solid;
+}
+.room-btn:active:not(:disabled) { transform: scale(0.97); }
+
+.room-btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-button-shadow);
+  color: var(--color-text);
+  box-shadow: var(--shadow-button);
+  font-size: 14px;
+}
+
+.room-btn-secondary {
+  background: rgba(104, 64, 40, 0.6);
+  border-color: var(--color-button-shadow);
+  color: var(--color-text-light);
+}
+
+.room-btn-accent {
+  background: var(--color-accent);
+  border-color: #802020;
+  color: var(--color-text-light);
+  box-shadow: 0 2px 0 #802020;
+}
+
+.room-start-hint {
+  font-size: 7px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.btn-back {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  padding: 10px 20px;
+  background: var(--color-primary);
+  color: var(--color-text);
+  border: 2px solid var(--color-button-shadow);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-borrow {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  width: 100%;
+  padding: 10px;
+  background: var(--color-accent);
+  border: 2px solid #802020;
+  border-radius: 8px;
+  color: var(--color-text-light);
+  cursor: pointer;
+}
+
+/* === Game view === */
+.room-game-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.game-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  padding-top: max(8px, var(--safe-top));
+  background: var(--color-panel-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.game-room-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.game-room-name {
+  font-size: 9px;
+  color: var(--color-gold);
+}
+
+.game-blinds {
+  font-size: 7px;
+  color: var(--color-text-muted);
+}
+
+.game-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-phase {
+  font-size: 8px;
+  color: var(--color-text-light);
+}
+
+.game-countdown {
+  font-size: 10px;
+  color: var(--color-gold);
+}
+.game-countdown.urgent {
+  color: var(--color-accent);
+  animation: pulse 1s infinite;
+}
+
+.game-table-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.game-action-area {
+  padding: 4px 8px 8px;
+  padding-bottom: max(8px, var(--safe-bottom));
+}
+
+/* === Modal === */
+.room-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 16px;
+}
+
+.room-modal {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-panel-bg);
+  border: 2px solid var(--color-button-shadow);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.room-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.room-modal-title {
+  font-size: 12px;
+  color: var(--color-gold);
+}
+
+.room-leader-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--color-input-bg);
+  border: 1px solid transparent;
+}
+.room-leader-item.is-first {
+  background: rgba(224, 176, 48, 0.08);
+  border-color: var(--color-gold);
+}
+
+.room-leader-rank { font-size: 12px; }
+.room-leader-name { flex: 1; font-size: 8px; color: var(--color-text-light); }
+.room-leader-chips { font-size: 8px; }
+.room-leader-chips.positive { color: var(--color-gold); }
+.room-leader-chips.negative { color: var(--color-accent); }
+
+/* === Animations === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (max-width: 700px) {
+  .room-left-col { width: 100%; min-width: unset; }
+}
+</style>

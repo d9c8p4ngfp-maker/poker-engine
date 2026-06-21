@@ -25,7 +25,6 @@ watch(() => props.minRaise, (v) => {
   if (betAmount.value < v) betAmount.value = v
 })
 
-// Auto-show slider when bet/raise becomes available (new round)
 watch([() => props.canBet, () => props.canRaise], ([b, r]) => {
   if (b || r) {
     showSlider.value = true
@@ -59,30 +58,31 @@ const clampedBetAmount = computed({
 
 const timerDisplay = computed(() => {
   const s = Math.max(0, Math.floor(props.timeLeftSec))
-  return props.timeLeftSec <= 10 ? `⚠️ ${s}s` : `${s}s`
+  return props.timeLeftSec <= 10 ? `⚠ ${s}s` : `${s}s`
 })
 </script>
 
 <template>
   <div
     class="action-panel rounded-t-xl p-3 space-y-2 transition-all"
-    :class="isMyTurn ? 'opacity-100' : 'opacity-60'"
-    style="background-color: var(--color-surface-light)"
+    :class="isMyTurn ? 'opacity-100' : 'opacity-75'"
+    style="background-color: var(--color-panel-bg); font-family: 'Press Start 2P', monospace;"
   >
     <!-- Timer -->
     <div
       v-if="timeLeftSec > 0"
       class="text-center text-sm font-bold"
-      :class="timeLeftSec <= 10 ? 'text-red-400' : 'text-gray-400'"
+      :class="timeLeftSec <= 10 ? 'text-red-400' : ''"
+      style="color: var(--color-text-light);"
     >
       {{ timerDisplay }}
     </div>
 
     <!-- Waiting text -->
-    <div v-if="!isMyTurn" class="text-center text-xs" style="color: var(--color-text-muted)">
+    <div v-if="!isMyTurn" class="text-center text-xs" style="color: var(--color-text-muted); font-size: 9px;">
       等待对手操作...
     </div>
-    <div v-else class="text-center text-xs" style="color: var(--color-gold)">
+    <div v-else class="text-center text-xs" style="color: var(--color-gold); font-size: 9px;">
       轮到你行动!
     </div>
 
@@ -91,31 +91,28 @@ const timerDisplay = computed(() => {
       <!-- Fold -->
       <button
         data-test="btn-fold"
-        class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
-        style="background-color: var(--color-accent)"
+        class="action-btn action-fold"
         @click="doAction('FOLD')"
       >
-        Fold
+        弃牌
       </button>
 
       <!-- Check or Call -->
       <button
         v-if="canCheck"
         data-test="btn-check"
-        class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
-        style="background-color: var(--color-primary)"
+        class="action-btn action-check"
         @click="doAction('CHECK')"
       >
-        Check
+        过牌
       </button>
       <button
         v-else-if="canCall"
         data-test="btn-call"
-        class="flex-1 py-3 rounded-lg font-bold text-sm text-white transition active:scale-95"
-        style="background-color: var(--color-primary)"
+        class="action-btn action-call"
         @click="doAction('CALL')"
       >
-        Call {{ callAmount }}
+        跟注 {{ callAmount }}
       </button>
     </div>
 
@@ -133,12 +130,52 @@ const timerDisplay = computed(() => {
       </div>
       <button
         data-test="btn-confirm-bet"
-        class="w-full py-2 rounded-lg font-bold text-sm text-black transition active:scale-95"
-        style="background-color: var(--color-gold)"
+        class="action-btn action-raise"
         @click="confirmBet"
       >
-        {{ canBet ? `Bet ${clampedBetAmount}` : `Raise to ${clampedBetAmount}` }}
+        {{ canBet ? `加注 ${clampedBetAmount}` : `加注到 ${clampedBetAmount}` }}
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.action-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: 8px;
+  font-weight: bold;
+  transition: all 0.1s;
+  cursor: pointer;
+  letter-spacing: 1px;
+  border: 2px solid;
+}
+
+.action-btn:active { transform: scale(0.97); }
+
+.action-fold {
+  background: var(--color-accent);
+  border-color: #802020;
+  color: var(--color-text-light);
+  box-shadow: 0 2px 0 #802020;
+}
+
+.action-check, .action-call {
+  background: var(--color-primary);
+  border-color: var(--color-button-shadow);
+  color: var(--color-text);
+  box-shadow: 0 2px 0 var(--color-button-shadow);
+}
+
+.action-raise {
+  width: 100%;
+  padding: 10px 8px;
+  background: var(--color-gold);
+  border-color: #a08020;
+  color: #382818;
+  box-shadow: 0 2px 0 #a08020;
+  font-size: 9px;
+}
+</style>

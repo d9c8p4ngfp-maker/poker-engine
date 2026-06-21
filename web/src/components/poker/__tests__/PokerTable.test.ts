@@ -88,7 +88,8 @@ describe('PokerTable', () => {
       },
     })
     const seats = wrapper.findAll('[data-test="seat"]')
-    // seat 1 player (B) is in topSeats → seats[0]
-    expect(seats[0].classes()).toContain('border-yellow-400')
+    // Players sorted by seatIndex: A (seat 0) first, B (seat 1) second
+    // currentPlayerIndex is 1 = player B, so seats[1] should be highlighted
+    expect(seats[1].classes()).toContain('border-yellow-400')
   })
 })

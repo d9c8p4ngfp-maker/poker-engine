@@ -475,7 +475,7 @@ onUnmounted(() => {
     <div v-if="!joined" class="room-join-state">
       <div v-if="joining" class="text-lg" style="color: var(--color-text-muted)">正在连接...</div>
       <div v-else-if="joinError" class="text-center space-y-3">
-        <div style="color: var(--color-accent); font-family: 'Press Start 2P', monospace; font-size: 9px;">{{ joinError }}</div>
+        <div style="color: var(--color-accent); font-family: 'Press Start 2P', monospace; font-size: 13px;">{{ joinError }}</div>
         <button @click="handleLeave" class="btn-back">
           返回首页
         </button>
@@ -515,13 +515,13 @@ onUnmounted(() => {
         <!-- Action area -->
         <div class="game-action-area">
           <div v-if="isSpectating" class="text-center py-2 space-y-2">
-            <div class="text-xs" style="color: var(--color-text-muted); font-family: 'Press Start 2P', monospace; font-size: 8px;">👀 观战中 — 你未参与此局</div>
+            <div style="color: var(--color-text-muted); font-family: 'Press Start 2P', monospace; font-size: 11px;">👀 观战中 — 你未参与此局</div>
             <button class="btn-borrow" @click="handleBorrow" :disabled="borrowing">
               {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
             </button>
           </div>
           <div v-else-if="isAllIn" class="text-center py-2">
-            <div style="color: var(--color-gold); font-family: 'Press Start 2P', monospace; font-size: 9px;">🔥 全押! 等待结果...</div>
+            <div style="color: var(--color-gold); font-family: 'Press Start 2P', monospace; font-size: 12px;">🔥 全押! 等待结果...</div>
           </div>
           <ActionPanel
             v-else-if="!roomStore.gameOver"
@@ -682,351 +682,71 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.room-screen {
-  position: relative;
-  min-height: 100vh;
-  font-family: 'Press Start 2P', monospace;
-}
+.room-screen { position:relative; min-height:100vh; font-family:'Press Start 2P',monospace; }
+.room-join-state { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
+.room-content { min-height:100vh; }
 
-/* === Connecting === */
-.room-join-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
-}
+/* Waiting lobby */
+.room-waiting-view { position:relative; min-height:100vh; display:flex; align-items:flex-start; padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
+.room-overlay { position:absolute; inset:0; background:linear-gradient(to right, rgba(30,16,6,0.55), transparent 52%); pointer-events:none; }
+.room-left-col { position:relative; z-index:1; display:flex; flex-direction:column; gap:16px; width:min(600px, 38%); min-width:340px; }
+.room-header { display:flex; justify-content:space-between; gap:10px; }
+.room-link-btn { font-family:'Press Start 2P',monospace; font-size:11px; color:rgba(224,176,48,0.45); background:none; border:none; cursor:pointer; padding:0; }
+.room-link-btn:hover { color:rgba(224,176,48,0.7); }
+.room-title { font-size:30px; font-weight:bold; color:var(--color-gold); text-shadow:0 2px 4px rgba(0,0,0,0.5); margin:0; }
+.room-info-row { display:flex; gap:10px; flex-wrap:wrap; }
+.room-info-chip { font-size:11px; padding:6px 10px; background:var(--color-input-bg); border:1px solid var(--color-border); border-radius:6px; color:var(--color-text-light); }
+.room-player-list { display:flex; flex-direction:column; gap:6px; }
+.room-list-header { font-size:11px; color:rgba(224,176,48,0.5); margin-bottom:4px; }
+.room-player-item { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-radius:8px; background:var(--color-panel-bg); border:1px solid var(--color-border); }
+.room-player-item.is-me { border-color:var(--color-gold); }
+.room-player-item.is-disconnected { opacity:0.5; }
+.room-player-left { display:flex; align-items:center; gap:8px; }
+.room-player-icon { font-size:18px; }
+.room-player-name { font-size:11px; color:var(--color-text-light); }
+.room-player-you { font-size:10px; color:var(--color-gold); }
+.room-player-right { display:flex; align-items:center; gap:6px; }
+.room-player-chips { font-size:11px; color:var(--color-gold); }
+.room-player-net { font-size:10px; color:var(--color-accent); }
+.room-share-hint { font-size:10px; color:rgba(224,176,48,0.4); text-align:center; margin-top:6px; }
+.room-id-highlight { color:var(--color-gold); }
 
-.room-content {
-  min-height: 100vh;
-}
+.room-btn { font-family:'Press Start 2P',monospace; font-weight:bold; font-size:13px; padding:14px 24px; border-radius:10px; cursor:pointer; transition:all 0.1s; letter-spacing:1px; border-width:2px; border-style:solid; }
+.room-btn:active:not(:disabled) { transform:scale(0.97); }
+.room-btn-primary { background:var(--color-primary); border-color:var(--color-button-shadow); color:var(--color-text); box-shadow:var(--shadow-button); font-size:16px; }
+.room-btn-secondary { background:rgba(104,64,40,0.6); border-color:var(--color-button-shadow); color:var(--color-text-light); }
+.room-btn-accent { background:var(--color-accent); border-color:#802020; color:var(--color-text-light); box-shadow:0 3px 0 #802020; }
+.room-start-hint { font-size:10px; color:var(--color-text-muted); text-align:center; }
 
-/* === Waiting lobby === */
-.room-waiting-view {
-  position: relative;
-  min-height: 100vh;
-  display: flex;
-  align-items: flex-start;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-}
+.btn-back { font-family:'Press Start 2P',monospace; font-size:13px; padding:14px 24px; background:var(--color-primary); color:var(--color-text); border:2px solid var(--color-button-shadow); border-radius:10px; cursor:pointer; }
+.btn-borrow { font-family:'Press Start 2P',monospace; font-size:11px; width:100%; padding:12px; background:var(--color-accent); border:2px solid #802020; border-radius:10px; color:var(--color-text-light); cursor:pointer; }
 
-.room-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, rgba(30, 16, 6, 0.55), transparent 55%);
-  pointer-events: none;
-}
+/* Game view */
+.room-game-view { display:flex; flex-direction:column; min-height:100vh; }
+.game-top-bar { display:flex; justify-content:space-between; align-items:center; padding:10px 20px; padding-top:max(10px, var(--safe-top)); background:var(--color-panel-bg); border-bottom:1px solid var(--color-border); }
+.game-room-info { display:flex; flex-direction:column; gap:4px; }
+.game-room-name { font-size:13px; color:var(--color-gold); }
+.game-blinds { font-size:10px; color:var(--color-text-muted); }
+.game-meta { display:flex; align-items:center; gap:10px; }
+.game-phase { font-size:11px; color:var(--color-text-light); }
+.game-countdown { font-size:14px; color:var(--color-gold); }
+.game-countdown.urgent { color:var(--color-accent); animation:pulse 1s infinite; }
+.game-table-area { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+.game-action-area { padding:8px 12px 12px; padding-bottom:max(12px, var(--safe-bottom)); }
 
-.room-left-col {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: min(460px, 35%);
-  min-width: 300px;
-}
+/* Modal */
+.room-modal-overlay { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); padding:20px; }
+.room-modal { width:100%; max-width:480px; background:var(--color-panel-bg); border:2px solid var(--color-button-shadow); border-radius:14px; padding:20px; }
+.room-modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.room-modal-title { font-size:15px; color:var(--color-gold); }
+.room-leader-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; background:var(--color-input-bg); border:1px solid transparent; }
+.room-leader-item.is-first { background:rgba(224,176,48,0.08); border-color:var(--color-gold); }
+.room-leader-rank { font-size:16px; }
+.room-leader-name { flex:1; font-size:11px; color:var(--color-text-light); }
+.room-leader-chips { font-size:11px; }
+.room-leader-chips.positive { color:var(--color-gold); }
+.room-leader-chips.negative { color:var(--color-accent); }
 
-.room-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.room-link-btn {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
-  color: rgba(224, 176, 48, 0.45);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-.room-link-btn:hover { color: rgba(224, 176, 48, 0.7); }
-
-.room-title {
-  font-size: 22px;
-  font-weight: bold;
-  color: var(--color-gold);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  margin: 0;
-}
-
-.room-info-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.room-info-chip {
-  font-size: 7px;
-  padding: 4px 8px;
-  background: var(--color-input-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text-light);
-}
-
-.room-player-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.room-list-header {
-  font-size: 8px;
-  color: rgba(224, 176, 48, 0.5);
-  margin-bottom: 2px;
-}
-
-.room-player-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-border);
-}
-.room-player-item.is-me {
-  border-color: var(--color-gold);
-}
-.room-player-item.is-disconnected {
-  opacity: 0.5;
-}
-
-.room-player-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.room-player-icon { font-size: 14px; }
-.room-player-name {
-  font-size: 8px;
-  color: var(--color-text-light);
-}
-.room-player-you {
-  font-size: 7px;
-  color: var(--color-gold);
-}
-
-.room-player-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.room-player-chips {
-  font-size: 8px;
-  color: var(--color-gold);
-}
-.room-player-net {
-  font-size: 7px;
-  color: var(--color-accent);
-}
-
-.room-share-hint {
-  font-size: 7px;
-  color: rgba(224, 176, 48, 0.4);
-  text-align: center;
-  margin-top: 4px;
-}
-
-.room-id-highlight {
-  color: var(--color-gold);
-}
-
-.room-btn {
-  font-family: 'Press Start 2P', monospace;
-  font-weight: bold;
-  font-size: 10px;
-  padding: 12px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.1s;
-  letter-spacing: 1px;
-  border-width: 2px;
-  border-style: solid;
-}
-.room-btn:active:not(:disabled) { transform: scale(0.97); }
-
-.room-btn-primary {
-  background: var(--color-primary);
-  border-color: var(--color-button-shadow);
-  color: var(--color-text);
-  box-shadow: var(--shadow-button);
-  font-size: 14px;
-}
-
-.room-btn-secondary {
-  background: rgba(104, 64, 40, 0.6);
-  border-color: var(--color-button-shadow);
-  color: var(--color-text-light);
-}
-
-.room-btn-accent {
-  background: var(--color-accent);
-  border-color: #802020;
-  color: var(--color-text-light);
-  box-shadow: 0 2px 0 #802020;
-}
-
-.room-start-hint {
-  font-size: 7px;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.btn-back {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
-  padding: 10px 20px;
-  background: var(--color-primary);
-  color: var(--color-text);
-  border: 2px solid var(--color-button-shadow);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.btn-borrow {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
-  width: 100%;
-  padding: 10px;
-  background: var(--color-accent);
-  border: 2px solid #802020;
-  border-radius: 8px;
-  color: var(--color-text-light);
-  cursor: pointer;
-}
-
-/* === Game view === */
-.room-game-view {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-.game-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-  padding-top: max(8px, var(--safe-top));
-  background: var(--color-panel-bg);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.game-room-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.game-room-name {
-  font-size: 9px;
-  color: var(--color-gold);
-}
-
-.game-blinds {
-  font-size: 7px;
-  color: var(--color-text-muted);
-}
-
-.game-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.game-phase {
-  font-size: 8px;
-  color: var(--color-text-light);
-}
-
-.game-countdown {
-  font-size: 10px;
-  color: var(--color-gold);
-}
-.game-countdown.urgent {
-  color: var(--color-accent);
-  animation: pulse 1s infinite;
-}
-
-.game-table-area {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-}
-
-.game-action-area {
-  padding: 4px 8px 8px;
-  padding-bottom: max(8px, var(--safe-bottom));
-}
-
-/* === Modal === */
-.room-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 16px;
-}
-
-.room-modal {
-  width: 100%;
-  max-width: 360px;
-  background: var(--color-panel-bg);
-  border: 2px solid var(--color-button-shadow);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.room-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.room-modal-title {
-  font-size: 12px;
-  color: var(--color-gold);
-}
-
-.room-leader-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--color-input-bg);
-  border: 1px solid transparent;
-}
-.room-leader-item.is-first {
-  background: rgba(224, 176, 48, 0.08);
-  border-color: var(--color-gold);
-}
-
-.room-leader-rank { font-size: 12px; }
-.room-leader-name { flex: 1; font-size: 8px; color: var(--color-text-light); }
-.room-leader-chips { font-size: 8px; }
-.room-leader-chips.positive { color: var(--color-gold); }
-.room-leader-chips.negative { color: var(--color-accent); }
-
-/* === Animations === */
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@media (max-width: 700px) {
-  .room-left-col { width: 100%; min-width: unset; }
-}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+@media (max-width:800px) { .room-left-col { width:100%; min-width:unset; } }
 </style>

@@ -33,7 +33,7 @@ watch(() => roomStore.status, (newStatus) => {
 onMounted(() => {
   const bgLayer = document.querySelector('.bg-layer') as HTMLElement
   if (bgLayer) {
-    bgLayer.style.backgroundImage = "url('/image_166587658107119.png')"
+    bgLayer.style.backgroundImage = "url('/image_968223578838775.png')"
   }
 })
 
@@ -189,7 +189,7 @@ watch(() => roomStore.status, (newStatus) => {
   if (newStatus === 'PLAYING' || newStatus === 'FINISHED') {
     bgLayer.style.backgroundImage = "url('/image_166619076022278.png')"
   } else {
-    bgLayer.style.backgroundImage = "url('/image_166587658107119.png')"
+    bgLayer.style.backgroundImage = "url('/image_968223578838775.png')"
   }
 })
 

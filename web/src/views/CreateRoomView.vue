@@ -23,7 +23,7 @@ const creating = ref(false)
 onMounted(() => {
   const bgLayer = document.querySelector('.bg-layer') as HTMLElement
   if (bgLayer) {
-    bgLayer.style.backgroundImage = "url('/image_166619076022279.png')"
+    bgLayer.style.backgroundImage = "url('/image_474537086141506.png')"
   }
 })
 

@@ -55,12 +55,14 @@ public class Room {
 
     public void advanceDealer() {
         if (players.isEmpty()) return;
-        int curSeat = -1;
+        final int curSeat;
         if (dealerPlayerId != null) {
             curSeat = players.stream()
                 .filter(p -> p.getPlayerId().equals(dealerPlayerId))
                 .mapToInt(Player::getSeatIndex)
                 .findFirst().orElse(-1);
+        } else {
+            curSeat = -1;
         }
         List<Player> eligible = players.stream()
             .filter(p -> p.getStatus() == PlayerStatus.ACTIVE && p.getChips() > 0)

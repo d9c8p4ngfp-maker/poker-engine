@@ -259,25 +259,27 @@ public class GameMessageController {
     }
 
     private java.util.Map<String, Object> roomToResponse(Room room) {
-        return java.util.Map.of(
-            "roomId", room.getRoomId(),
-            "name", room.getName(),
-            "status", room.getStatus().name(),
-            "players", room.getPlayers().stream().map(p -> java.util.Map.of(
-                "playerId", p.getPlayerId(),
-                "nickname", p.getNickname(),
-                "seatIndex", p.getSeatIndex(),
-                "chips", p.getChips(),
-                "borrowCount", p.getBorrowCount(),
-                "connected", p.isConnected(),
-                "owner", p.isOwner()
-            )).toList(),
-            "smallBlind", room.getConfig().getSmallBlind(),
-            "bigBlind", room.getConfig().getBigBlind(),
-            "maxSeats", room.getConfig().getMaxSeats(),
-            "dealerPlayerId", room.getDealerPlayerId(),
-            "initialChips", room.getConfig().getInitialChips()
-        );
+        java.util.Map<String, Object> res = new java.util.HashMap<>();
+        res.put("roomId", room.getRoomId());
+        res.put("name", room.getName());
+        res.put("status", room.getStatus().name());
+        res.put("players", room.getPlayers().stream().map(p -> {
+            java.util.Map<String, Object> pm = new java.util.HashMap<>();
+            pm.put("playerId", p.getPlayerId());
+            pm.put("nickname", p.getNickname());
+            pm.put("seatIndex", p.getSeatIndex());
+            pm.put("chips", p.getChips());
+            pm.put("borrowCount", p.getBorrowCount());
+            pm.put("connected", p.isConnected());
+            pm.put("owner", p.isOwner());
+            return pm;
+        }).toList());
+        res.put("smallBlind", room.getConfig().getSmallBlind());
+        res.put("bigBlind", room.getConfig().getBigBlind());
+        res.put("maxSeats", room.getConfig().getMaxSeats());
+        res.put("dealerPlayerId", room.getDealerPlayerId());
+        res.put("initialChips", room.getConfig().getInitialChips());
+        return res;
     }
 
     private void autoPlayBots(String roomId) {

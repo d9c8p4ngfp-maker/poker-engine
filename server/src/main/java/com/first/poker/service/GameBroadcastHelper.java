@@ -79,6 +79,7 @@ public class GameBroadcastHelper {
         room.advanceDealer();
         room.setHandCount(room.getHandCount() + 1);
         room.setStatus(com.first.poker.model.enums.RoomStatus.WAITING);
+    }
 
     public void broadcastBustChoice(String roomId, String playerId, String nickname) {
         var payload = new HashMap<String, Object>();

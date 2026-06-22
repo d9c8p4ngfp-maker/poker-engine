@@ -12,6 +12,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app'],
     proxy: {
       '/api': 'http://localhost:8080',
       '/ws-native': {

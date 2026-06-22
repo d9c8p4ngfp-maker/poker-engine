@@ -1,0 +1,103 @@
+<h2>首页 — 方案D深化版：iPhone 横屏适配</h2>
+<p class="subtitle">左栏UI + 右区酒馆背景 · 字体放大 · 避让安全区 · 2868×1320</p>
+
+<div class="mockup">
+  <div class="mockup-header">首页 — 真实比例模拟（避开iPhone左侧Dynamic Island安全区）</div>
+  <div class="mockup-body" style="position:relative;width:100%;aspect-ratio:2868/1320;background:url(http://localhost:5173/image_564507927161879.png) center/cover no-repeat;image-rendering:pixelated;overflow:hidden;border-radius:4px;">
+    <!-- safe area indicator -->
+    <div style="position:absolute;inset:0;border:3px dashed rgba(224,176,48,0.4);margin:40px 40px 40px 60px;border-radius:4px;pointer-events:none;"></div>
+    <div style="position:absolute;top:6px;left:60px;font-size:6px;color:rgba(255,255,255,0.5);font-family:monospace;">SAFE AREA → 40px margin all sides | Dynamic Island on left → extra 20px left</div>
+    
+    <!-- gradient overlay: dark on left, transparent on right -->
+    <div style="position:absolute;inset:0;background:linear-gradient(to right, rgba(30,16,6,0.65), transparent 55%);"></div>
+    
+    <!-- LEFT COLUMN UI -->
+    <div style="position:absolute;left:70px;top:44%;transform:translateY(-50%);display:flex;flex-direction:column;gap:28px;z-index:2;">
+      <!-- Title -->
+      <div>
+        <div style="color:#e0b030;font-size:42px;font-weight:bold;text-shadow:0 3px 6px rgba(0,0,0,0.6);line-height:1.1;">酒馆<br>扑克</div>
+        <div style="color:rgba(224,176,48,0.5);font-size:14px;margin-top:8px;text-shadow:0 1px 2px rgba(0,0,0,0.4);">TAVERN POKER</div>
+      </div>
+      <!-- Buttons -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="background:rgba(200,152,96,0.92);color:#382818;padding:16px 36px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">创建房间</div>
+        <div style="background:rgba(140,96,56,0.92);color:#f0e0c8;padding:16px 36px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">加入房间</div>
+      </div>
+    </div>
+
+    <!-- Right side: subtle signboard hanging from tavern -->
+    <div style="position:absolute;right:120px;top:38%;transform:translateY(-50%);background:rgba(160,112,72,0.7);color:#f0e0c8;padding:10px 20px;border-radius:4px;font-size:9px;border:2px solid #684028;">
+      横屏手游 &nbsp;·&nbsp; 一人一牌一酒馆
+    </div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>iPhone 17 横屏适配参数</h2>
+
+<table style="width:100%;border-collapse:collapse;margin:12px 0;">
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;width:180px;">分辨率</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">2868 × 1320 px</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">比例</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">≈ 2.17:1（宽屏）</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">安全区边距</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">上下 40px · 右 40px · 左 60px（Dynamic Island 避让）</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">左栏内容区</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">左侧 ~35% 宽度用于 UI，右 65% 纯背景展示</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">字号基准</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">标题 42px · 按钮 16px · 英文副标题 14px</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">图层</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">背景图 → 左渐变暗遮罩 → UI文字/按钮在上</td>
+  </tr>
+</table>
+
+<div style="display:flex;gap:12px;margin-top:16px;">
+  <div class="mockup">
+    <div class="mockup-header">什么是"安全区"？</div>
+    <div class="mockup-body" style="font-size:10px;color:#c0c0c0;padding:12px;">
+      <p style="margin-bottom:8px;">iPhone 17 横屏时，左侧有 <b>Dynamic Island</b>（药丸状切口），上方有状态栏。UI 内容不能放在这些区域，否则会被遮挡。</p>
+      <p>所以左栏 UI 需要 <b>left: 70px</b> 起步，避开岛形区域。按钮也不能贴顶贴底。</p>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">为什么左栏型适合横屏？</div>
+    <div class="mockup-body" style="font-size:10px;color:#c0c0c0;padding:12px;">
+      <p style="margin-bottom:8px;">横屏宽 2868px，2.17:1 的比例意味着<b>横向空间充裕</b>。</p>
+      <p>左栏占 35% = ~1000px 放 UI 绰绰有余，右 65% 留给酒馆画面展示。用户右手握手机时，左手拇指正好够到左栏按钮。</p>
+    </div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>首页这个方案可以吗？</h2>
+<p class="subtitle">左栏UI（大字体）+ 右区酒馆背景 + iPhone安全区避让</p>
+
+<div class="options">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>可以，继续设计下一个屏幕</h3>
+      <p>首页就这样定，往下走创建房间/等待/对局</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>还要调一下</h3>
+      <p>布局OK，但某些细节要改（大小、位置、颜色等）</p>
+    </div>
+  </div>
+</div>

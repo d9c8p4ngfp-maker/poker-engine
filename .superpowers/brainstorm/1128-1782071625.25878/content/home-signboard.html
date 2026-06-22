@@ -1,0 +1,58 @@
+<h2>首页 — 文字叠在背景挂牌上</h2>
+<p class="subtitle">"酒馆扑克"放到建筑自带的木牌上，"创建/加入"按钮放在左下方</p>
+
+<div class="mockup">
+  <div class="mockup-header">首页 — 文字融合背景挂牌（推荐）</div>
+  <div class="mockup-body" style="position:relative;width:100%;aspect-ratio:2868/1320;background:url(http://localhost:5173/image_564507927161879.png) center/cover no-repeat;image-rendering:pixelated;overflow:hidden;border-radius:4px;">
+
+    <!-- safe area -->
+    <div style="position:absolute;inset:0;border:3px dashed rgba(224,176,48,0.35);margin:40px 40px 40px 60px;border-radius:4px;pointer-events:none;"></div>
+
+    <!-- Title ON the signboard — positioned over the tavern's hanging sign -->
+    <div style="position:absolute;left:50%;top:28%;transform:translate(-50%,-50%);text-align:center;z-index:2;">
+      <div style="color:#f0e0c8;font-size:38px;font-weight:bold;text-shadow:0 3px 0 #382818, 0 4px 8px rgba(0,0,0,0.5);letter-spacing:4px;">酒馆扑克</div>
+      <div style="color:rgba(224,176,48,0.7);font-size:11px;text-shadow:0 1px 2px rgba(0,0,0,0.5);margin-top:2px;">TAVERN POKER</div>
+    </div>
+
+    <!-- Buttons — left side, below the signboard -->
+    <div style="position:absolute;left:70px;bottom:14%;display:flex;flex-direction:column;gap:18px;z-index:2;">
+      <div style="background:rgba(200,152,96,0.92);color:#382818;padding:16px 42px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">创建房间</div>
+      <div style="background:rgba(140,96,56,0.92);color:#f0e0c8;padding:16px 42px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">加入房间</div>
+    </div>
+
+    <!-- subtle left edge gradient to help buttons pop -->
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom, transparent 50%, rgba(20,10,4,0.4) 100%);"></div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>布局逻辑</h2>
+
+<div style="font-size:10px;color:#c0c0c0;line-height:1.8;">
+  <p><b>挂牌位置</b> — 背景图建筑正面中央上方有一块木牌。"酒馆扑克"直接叠在上面，像素风格文字融入建筑。</p>
+  <p><b>按钮位置</b> — 左下角 safe area 内，两按钮竖排。iPhone 横屏时左手拇指自然够得到。</p>
+  <p><b>整体效果</b> — 不遮挡酒馆建筑主体（红瓦屋顶、窗户、门口），文字像是建筑的一部分。</p>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>这个方案可以吗？</h2>
+<p class="subtitle">标题融合背景挂牌 + 按钮左下方适配</p>
+
+<div class="options">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>可以，继续下一个屏幕</h3>
+      <p>标题挂牌位置合适，按钮左下方OK</p>
+    </div>
+  </div>
+  <div class="option" data-choice="move" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>要调位置</h3>
+      <p>标题或按钮需要挪动，我在终端里说</p>
+    </div>
+  </div>
+</div>

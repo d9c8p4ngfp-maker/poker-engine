@@ -1,0 +1,81 @@
+<h2>等待房间 — UI布局方案</h2>
+<p class="subtitle">背景：游戏房空牌桌+壁炉（图4）· 功能：房间信息、玩家列表、等待开始</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">A — 玩家环桌式（推荐）</div>
+    <div class="mockup-body" style="position:relative;width:100%;aspect-ratio:2.17/1;background:url(http://localhost:5173/image_968223578838775.png) center/cover no-repeat;image-rendering:pixelated;overflow:hidden;border-radius:4px;">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center, transparent 30%, rgba(20,10,4,0.4) 100%);"></div>
+      
+      <!-- Room info top-left -->
+      <div style="position:absolute;left:70px;top:44px;z-index:2;">
+        <div style="color:#e0b030;font-size:24px;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.5);">狮心旅店</div>
+        <div style="color:rgba(224,176,48,0.5);font-size:10px;margin-top:4px;">Lionheart Inn</div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:8px;color:#887868;">
+          <span>盲注 10/20</span><span>买入 2000</span><span>3/6人</span>
+        </div>
+      </div>
+
+      <!-- Player seats around table -->
+      <div style="position:absolute;left:20%;top:28%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.88);border:2px solid #684028;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#382818;font-size:9px;box-shadow:0 2px 8px rgba(0,0,0,0.15);">Neo<br><span style="font-size:6px;color:#887868;">2000💰</span></div>
+      <div style="position:absolute;left:55%;top:22%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.88);border:2px solid #684028;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#382818;font-size:9px;box-shadow:0 2px 8px rgba(0,0,0,0.15);">Zed<br><span style="font-size:6px;color:#887868;">2000💰</span></div>
+      <div style="position:absolute;left:55%;top:58%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.8);border:2px dashed #684028;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#887868;font-size:9px;">空位<br><span style="font-size:6px;">等待加入</span></div>
+      <div style="position:absolute;left:20%;top:58%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.8);border:2px dashed #684028;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#887868;font-size:9px;">空位<br><span style="font-size:6px;">等待加入</span></div>
+      <div style="position:absolute;left:34%;top:70%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.88);border:2px solid #e0b030;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#382818;font-size:9px;box-shadow:0 0 12px rgba(224,176,48,0.3);">我<br><span style="font-size:5px;color:#e0b030;font-weight:bold;">DEALER</span><br><span style="font-size:6px;color:#887868;">2000💰</span></div>
+      <div style="position:absolute;left:42%;top:42%;transform:translate(-50%,-50%);background:rgba(240,224,200,0.8);border:2px dashed #684028;border-radius:8px;padding:8px 14px;text-align:center;z-index:2;color:#887868;font-size:9px;">空位<br><span style="font-size:6px;">等待加入</span></div>
+
+      <!-- Center: table area with start button -->
+      <div style="position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;z-index:3;">
+        <div style="background:#c89860;color:#382818;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:bold;border:3px solid #684028;box-shadow:0 4px 0 #684028, 0 0 20px rgba(224,176,48,0.2);">开始游戏</div>
+      </div>
+
+      <!-- Back link -->
+      <div style="position:absolute;left:70px;bottom:50px;color:rgba(224,176,48,0.3);font-size:8px;z-index:2;">← 返回大厅</div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">B — 左栏列表式</div>
+    <div class="mockup-body" style="position:relative;width:100%;aspect-ratio:2.17/1;background:url(http://localhost:5173/image_968223578838775.png) center/cover no-repeat;image-rendering:pixelated;overflow:hidden;border-radius:4px;">
+      <div style="position:absolute;inset:0;background:linear-gradient(to right, rgba(30,16,6,0.6), transparent 55%);"></div>
+
+      <!-- Left column -->
+      <div style="position:absolute;left:70px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px;width:32%;z-index:2;">
+        <div style="color:#e0b030;font-size:24px;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.5);">狮心旅店</div>
+        <div style="color:rgba(224,176,48,0.4);font-size:10px;">盲注 10/20 · 买入 2000 · 3/6人</div>
+
+        <!-- Player list -->
+        <div style="background:rgba(40,20,8,0.72);border:2px solid #684028;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;background:rgba(240,224,200,0.12);"><span style="color:#e0b030;font-size:7px;">DEALER</span><span style="color:#f0e0c8;font-size:10px;">我</span><span style="margin-left:auto;color:#887868;font-size:7px;">2000💰</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;"><span style="color:#c89860;font-size:9px;">👤</span><span style="color:#f0e0c8;font-size:10px;">Neo</span><span style="margin-left:auto;color:#887868;font-size:7px;">2000💰</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:4px;"><span style="color:#c89860;font-size:9px;">👤</span><span style="color:#f0e0c8;font-size:10px;">Zed</span><span style="margin-left:auto;color:#887868;font-size:7px;">2000💰</span></div>
+          <div style="color:rgba(224,176,48,0.2);font-size:8px;text-align:center;padding:6px;border:1px dashed rgba(224,176,48,0.15);border-radius:4px;">+ 空位 × 3</div>
+        </div>
+
+        <div style="background:#c89860;color:#382818;padding:12px;border-radius:6px;font-size:14px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 3px 0 #684028;">开始游戏</div>
+        <div style="color:rgba(224,176,48,0.3);font-size:8px;text-align:center;">← 返回大厅</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>你更喜欢哪种？</h2>
+<p class="subtitle">等待房间：玩家怎么显示？</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>玩家环桌式 ✓ 推荐</h3>
+      <p>玩家姓名令牌环绕在牌桌周围，空位虚框，"开始"按钮在桌面中央。跟背景牌桌融合</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>左栏列表式</h3>
+      <p>与首页/创建房间一致的左栏风格，玩家用列表显示</p>
+    </div>
+  </div>
+</div>

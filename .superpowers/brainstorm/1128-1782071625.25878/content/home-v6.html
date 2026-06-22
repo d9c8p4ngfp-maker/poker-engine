@@ -1,0 +1,72 @@
+<h2>首页 — 左栏UI + 右区酒馆外景</h2>
+<p class="subtitle">iPhone 17 横屏适配 · 2868×1320 · 左栏大字体 · 背景自然展示</p>
+
+<div class="mockup">
+  <div class="mockup-header">首页布局</div>
+  <div class="mockup-body" style="position:relative;width:100%;aspect-ratio:2868/1320;background:url(http://localhost:5173/image_564507927161879.png) center/cover no-repeat;image-rendering:pixelated;overflow:hidden;border-radius:4px;">
+
+    <!-- safe area indicator -->
+    <div style="position:absolute;inset:0;border:3px dashed rgba(224,176,48,0.35);margin:40px 40px 40px 60px;border-radius:4px;pointer-events:none;"></div>
+    <div style="position:absolute;top:4px;left:62px;font-size:5px;color:rgba(255,255,255,0.4);font-family:monospace;">← Dynamic Island 避让 60px</div>
+
+    <!-- Left dark gradient overlay -->
+    <div style="position:absolute;inset:0;background:linear-gradient(to right, rgba(30,16,6,0.55), transparent 55%);"></div>
+
+    <!-- LEFT COLUMN -->
+    <div style="position:absolute;left:70px;top:44%;transform:translateY(-50%);display:flex;flex-direction:column;gap:28px;z-index:2;">
+      <div>
+        <div style="color:#e0b030;font-size:42px;font-weight:bold;text-shadow:0 3px 6px rgba(0,0,0,0.6);line-height:1.1;">酒馆<br>扑克</div>
+        <div style="color:rgba(224,176,48,0.45);font-size:14px;margin-top:8px;text-shadow:0 1px 2px rgba(0,0,0,0.4);">TAVERN POKER</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="background:rgba(200,152,96,0.92);color:#382818;padding:16px 36px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">创建房间</div>
+        <div style="background:rgba(140,96,56,0.92);color:#f0e0c8;padding:16px 36px;border-radius:8px;font-size:16px;font-weight:bold;border:3px solid #684028;text-align:center;box-shadow:0 4px 0 #684028, 0 6px 16px rgba(0,0,0,0.2);">加入房间</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>iPhone 17 横屏适配</h2>
+
+<table style="width:100%;border-collapse:collapse;margin:12px 0;">
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;width:180px;">分辨率</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">2868 × 1320 px（2.17:1 宽屏）</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">安全区</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">上下右 40px，左 60px（Dynamic Island 避让）</td>
+  </tr>
+  <tr style="border-bottom:1px solid #333;">
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">左栏占比</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">左侧 ~35% UI，右侧 ~65% 酒馆画面</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;color:#a0a0a0;font-size:10px;">图层</td>
+    <td style="padding:8px;color:#e0e0e0;font-size:12px;">背景图 → 左渐变暗罩 → UI 在上</td>
+  </tr>
+</table>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>这个方案可以吗？</h2>
+<p class="subtitle">左栏大字体标题 + 按钮，右区完整酒馆外景</p>
+
+<div class="options">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>可以，定下来</h3>
+      <p>首页就这样，继续设计其他屏幕</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>还要微调</h3>
+      <p>大体OK但细节要改，我在终端里说</p>
+    </div>
+  </div>
+</div>

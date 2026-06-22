@@ -1,0 +1,125 @@
+<h2>旧主题 vs 新主题 — 配色方向对比</h2>
+<p class="subtitle">左边是现有深色主题，右边是基于像素酒馆的明亮暖色调</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">现有深色主题</div>
+    <div class="mockup-body">
+      <div style="background:#1a1a2e;padding:16px;border-radius:8px;min-height:360px;display:flex;flex-direction:column;gap:12px;">
+        <div style="background:#16213e;padding:12px;border-radius:6px;text-align:center;">
+          <div style="color:#ffd700;font-size:14px;font-weight:bold;">TAVERN POKER</div>
+          <div style="color:#a0a0a0;font-size:10px;margin-top:4px;">深海军蓝 + 暗绿毡面</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-direction:column;">
+          <div style="background:#1a7f37;color:#fff;padding:8px;border-radius:4px;text-align:center;font-size:10px;">创建房间（绿色按钮）</div>
+          <div style="background:#e94560;color:#fff;padding:8px;border-radius:4px;text-align:center;font-size:10px;">FOLD（红色）</div>
+          <div style="background:#333;color:#e0e0e0;padding:8px;border-radius:4px;text-align:center;font-size:10px;">JOIN ROOM</div>
+        </div>
+        <div style="background:#0d6b2e;padding:20px;border-radius:50px;text-align:center;border:3px solid #1a3a5c;">
+          <div style="color:#ffd700;font-size:11px;">POT: 120</div>
+          <div style="color:#fff;font-size:9px;">A♥ K♠ 7♦</div>
+        </div>
+        <div style="color:#a0a0a0;font-size:8px;text-align:center;">暗背景 · 白色文字 · 绿色重点</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">新暖色像素酒馆主题</div>
+    <div class="mockup-body">
+      <div style="background:#f0e0c8;padding:16px;border-radius:8px;min-height:360px;display:flex;flex-direction:column;gap:12px;">
+        <div style="background:rgba(240,224,200,0.85);padding:12px;border-radius:6px;text-align:center;backdrop-filter:blur(4px);border:2px solid #a07048;">
+          <div style="color:#684028;font-size:14px;font-weight:bold;">TAVERN POKER</div>
+          <div style="color:#887868;font-size:10px;margin-top:4px;">奶油墙壁 + 蜂蜜木色</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-direction:column;">
+          <div style="background:#c89860;color:#382818;padding:8px;border-radius:4px;text-align:center;font-size:10px;border:2px solid #684028;">创建房间（木色按钮）</div>
+          <div style="background:#c04030;color:#fff;padding:8px;border-radius:4px;text-align:center;font-size:10px;border:2px solid #802018;">FOLD（红瓦色）</div>
+          <div style="background:#a07048;color:#382818;padding:8px;border-radius:4px;text-align:center;font-size:10px;border:2px solid #684028;">JOIN ROOM</div>
+        </div>
+        <div style="background:#409048;padding:20px;border-radius:50px;text-align:center;border:3px solid #684028;">
+          <div style="color:#e0b030;font-size:11px;">POT: 120</div>
+          <div style="color:#fff;font-size:9px;">A♥ K♠ 7♦</div>
+        </div>
+        <div style="color:#684028;font-size:8px;text-align:center;">暖色背景 · 深棕文字 · 蜂蜜木重点</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>新配色方案详情</h2>
+<p class="subtitle">CSS设计令牌，替换现有的 tokens.css</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#f0e0c8;border-radius:4px;margin:0 auto 8px;border:2px solid #a07048;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">SURFACE</div>
+    <div style="color:#a0a0a0;font-size:8px;">#f0e0c8 奶油墙</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#c89860;border-radius:4px;margin:0 auto 8px;border:2px solid #a07048;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">PRIMARY</div>
+    <div style="color:#a0a0a0;font-size:8px;">#c89860 蜂蜜木</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#684028;border-radius:4px;margin:0 auto 8px;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">DARK WOOD</div>
+    <div style="color:#a0a0a0;font-size:8px;">#684028 深木框</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#e0b030;border-radius:4px;margin:0 auto 8px;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">GOLD</div>
+    <div style="color:#a0a0a0;font-size:8px;">#e0b030 琥珀金</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#409048;border-radius:4px;margin:0 auto 8px;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">FELT</div>
+    <div style="color:#a0a0a0;font-size:8px;">#409048 绿毡面</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#c04030;border-radius:4px;margin:0 auto 8px;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">ACCENT</div>
+    <div style="color:#a0a0a0;font-size:8px;">#c04030 红瓦色</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:#382818;border-radius:4px;margin:0 auto 8px;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">TEXT</div>
+    <div style="color:#a0a0a0;font-size:8px;">#382818 深棕文</div>
+  </div>
+  <div style="background:#1a1f0e;padding:12px;border-radius:6px;text-align:center;">
+    <div style="width:48px;height:48px;background:rgba(240,224,200,0.85);border-radius:4px;margin:0 auto 8px;border:2px solid #a07048;"></div>
+    <div style="color:#e0e0e0;font-size:10px;font-weight:bold;">PANEL</div>
+    <div style="color:#a0a0a0;font-size:8px;">半透奶油板</div>
+  </div>
+</div>
+
+<hr style="margin:32px 0;border-color:#444;">
+
+<h2>这个方向走吗？</h2>
+<p class="subtitle">用明亮暖色调替代深色主题：奶油底色、蜂蜜木按钮、深棕文字、琥珀金点缀</p>
+
+<div class="options">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>对，就是这个方向</h3>
+      <p>明亮暖色调像素酒馆，用这套颜色改整个前端</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方向可以，但需要微调</h3>
+      <p>整体明亮暖色OK，某些具体颜色/对比度要改</p>
+    </div>
+  </div>
+  <div class="option" data-choice="other" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>换个思路</h3>
+      <p>我想要不同的配色方案，在终端里说明</p>
+    </div>
+  </div>
+</div>

@@ -1,6 +1,7 @@
 package com.first.poker.model;
 
 import com.first.poker.model.enums.RoomStatus;
+import com.first.poker.model.enums.PlayerStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.util.*;
@@ -14,7 +15,7 @@ public class Room {
     private RoomStatus status;
     private RoomConfig config;
     private List<Player> players;
-    private int dealerIndex;
+    private String dealerPlayerId;
     private long createdAt;
     private volatile long lastActivity;
     private int handCount;
@@ -31,7 +32,7 @@ public class Room {
         this.config = config;
         this.status = RoomStatus.WAITING;
         this.players = new CopyOnWriteArrayList<>();
-        this.dealerIndex = 0;
+        this.dealerPlayerId = null;
         this.createdAt = System.currentTimeMillis();
         this.lastActivity = this.createdAt;
         this.handCount = 0;
@@ -50,6 +51,37 @@ public class Room {
 
     public boolean removePlayer(String playerId) {
         return players.removeIf(p -> p.getPlayerId().equals(playerId));
+    }
+
+    public void advanceDealer() {
+        if (players.isEmpty()) return;
+        final int curSeat;
+        if (dealerPlayerId != null) {
+            curSeat = players.stream()
+                .filter(p -> p.getPlayerId().equals(dealerPlayerId))
+                .mapToInt(Player::getSeatIndex)
+                .findFirst().orElse(-1);
+        } else {
+            curSeat = -1;
+        }
+        List<Player> eligible = players.stream()
+            .filter(p -> p.getStatus() == PlayerStatus.ACTIVE && p.getChips() > 0)
+            .sorted(Comparator.comparingInt(Player::getSeatIndex))
+            .toList();
+        if (eligible.isEmpty()) return;
+        dealerPlayerId = eligible.stream()
+            .filter(p -> p.getSeatIndex() > curSeat)
+            .findFirst()
+            .orElse(eligible.get(0))
+            .getPlayerId();
+    }
+
+    public int dealerIndexInParticipants(List<?> participants, java.util.function.Function<Object, String> idExtractor) {
+        if (dealerPlayerId == null) return 0;
+        for (int i = 0; i < participants.size(); i++) {
+            if (idExtractor.apply(participants.get(i)).equals(dealerPlayerId)) return i;
+        }
+        return 0;
     }
 
     public static String generateRoomId() {

@@ -26,6 +26,9 @@ public class GameStateSnapshot {
         map.put("smallBlind", state.smallBlindAmount());
         map.put("bigBlind", state.bigBlindAmount());
         map.put("dealerIndex", state.dealerIndex());
+        if (state.dealerIndex() >= 0 && state.dealerIndex() < state.players().size()) {
+            map.put("dealerPlayerId", state.players().get(state.dealerIndex()).playerId());
+        }
         map.put("timeLeftSec", 30);
         map.put("minRaise", state.minRaise());
         boolean isShowdown = state.phase() == GamePhase.SHOWDOWN;
@@ -88,6 +91,12 @@ public class GameStateSnapshot {
             .filter(p -> p.playerId().equals(playerId)).findFirst().orElse(null);
         if (myPlayer != null) {
             map.put("myHoleCards", myPlayer.holeCards().stream().map(Card::toString).toList());
+        }
+        if (state.currentPlayerIndex() >= 0) {
+            var actions = ActionValidator.legalActions(state);
+            map.put("legalActions", actions.stream()
+                .map(a -> Map.of("type", a.type().name(), "minAmount", a.minAmount(), "maxAmount", a.maxAmount()))
+                .toList());
         }
         return map;
     }

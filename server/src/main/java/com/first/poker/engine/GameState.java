@@ -82,6 +82,12 @@ public record GameState(
             actedMask, lastAggressorIndex);
     }
 
+    public GameState withMinRaise(int newMinRaise) {
+        return new GameState(phase, players, communityCards, pot, currentBet, newMinRaise,
+            currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,
+            actedMask, lastAggressorIndex);
+    }
+
     public GameState withPlayers(List<GamePlayerState> newPlayers) {
         return new GameState(phase, newPlayers, communityCards, pot, currentBet, minRaise,
             currentPlayerIndex, dealerIndex, smallBlindAmount, bigBlindAmount, deck,

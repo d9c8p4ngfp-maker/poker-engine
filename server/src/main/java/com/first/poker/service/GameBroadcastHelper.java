@@ -76,6 +76,9 @@ public class GameBroadcastHelper {
                     }
                 });
         }
+        room.advanceDealer();
+        room.setHandCount(room.getHandCount() + 1);
+        room.setStatus(com.first.poker.model.enums.RoomStatus.WAITING);
     }
 
     public void broadcastBustChoice(String roomId, String playerId, String nickname) {
@@ -83,7 +86,6 @@ public class GameBroadcastHelper {
         payload.put("type", "bust_choice");
         payload.put("playerId", playerId);
         payload.put("nickname", nickname);
-        System.out.println("[BUST-CHOICE] sending to " + roomId + "/" + playerId);
         broadcast.sendToPlayer(playerId, payload);
     }
 
@@ -97,7 +99,6 @@ public class GameBroadcastHelper {
         if (!anyBusted) return false;
 
         if (room.getConfig().isBustEndsGame()) {
-            System.out.println("[GAME-OVER] " + roomId + " bust-ends-game mode, first bust detected");
             broadcastGameOver(roomId, room, result);
             return true;
         }
@@ -106,7 +107,6 @@ public class GameBroadcastHelper {
             .filter(p -> p.getStatus() != com.first.poker.model.enums.PlayerStatus.LEFT)
             .filter(p -> p.getChips() > 0).count();
         if (activePlayers <= 1) {
-            System.out.println("[GAME-OVER] " + roomId + " last standing (active=" + activePlayers + ")");
             broadcastGameOver(roomId, room, result);
             return true;
         }
@@ -138,7 +138,6 @@ public class GameBroadcastHelper {
     }
 
     public void handleTimeout(String roomId, String playerId) {
-        System.out.println("[TIMEOUT] " + roomId + " player=" + playerId);
         gameSession.executeWithLock(roomId, () -> {
             try {
                 GameEngine.ActionResult result = gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
@@ -170,7 +169,6 @@ public class GameBroadcastHelper {
     public void scheduleNextTimeout(String roomId, GameState state) {
         var cp = state.currentPlayer();
         if (cp != null && !cp.playerId().startsWith("bot-") && !cp.folded() && !cp.allIn()) {
-            System.out.println("[TIMEOUT-SCHEDULE] " + roomId + " for " + cp.playerId() + " (30s)");
             timeoutScheduler.scheduleTimeout(roomId, cp.playerId(), 30);
         }
     }
@@ -179,7 +177,6 @@ public class GameBroadcastHelper {
         timeoutScheduler.cancelTimeout(roomId);
     }
     public void autoPlayBots(String roomId) {
-        System.out.println("[AUTOBOTS-START] " + roomId);
         int safety = 0;
         while (safety++ < 30) {
             var state = gameSession.getState(roomId);
@@ -205,10 +202,6 @@ public class GameBroadcastHelper {
                 autoAction = GameAction.FOLD; // 0-chip human always folds
             }
 
-            System.out.println("[AUTOPLAY] " + roomId + " " + cp.playerId()
-                + " action=" + autoAction + " chips=" + cp.chips());
-            System.out.flush();
-
             try {
                 var result = gameSession.applyAction(roomId, cp.playerId(), autoAction, amount);
                 broadcastGameState(roomId, result.state());
@@ -224,11 +217,8 @@ public class GameBroadcastHelper {
                     return;
                 }
             } catch (IllegalArgumentException e) {
-                System.out.println("[autoPlayBot] " + cp.playerId() + " turn already processed, continuing");
                 continue;
             } catch (Throwable e) {
-                System.err.println("[autoPlayBot] " + cp.playerId() + ": " + e.getClass().getName() + " - " + e.getMessage());
-                e.printStackTrace(System.err);
                 continue;
             }
         }

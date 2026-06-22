@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 const props = defineProps<{
   winners: { playerId: string; nickname?: string; handName: string; amount: number }[]
   leaderboard: { playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number; netChips?: number }[]
@@ -18,54 +17,119 @@ function getMedal(index: number) {
 </script>
 
 <template>
-  <div class="absolute inset-0 z-20 flex items-center justify-center bg-black/70 px-4">
-    <div
-      class="w-full max-w-xs rounded-xl p-6 space-y-4 text-center"
-      style="background-color: var(--color-surface-light)"
-    >
-      <div class="text-4xl">🏆</div>
-      <div class="text-xl font-bold" style="color: var(--color-gold)">比赛结束</div>
+  <div class="gameover-overlay">
+    <div class="gameover-modal">
+      <div class="gameover-trophy">🏆</div>
+      <div class="gameover-title">比赛结束</div>
 
-      <!-- Last hand winners -->
-      <div v-if="winners && winners.length" class="space-y-1">
-        <div class="text-xs" style="color: var(--color-text-muted)">最后一局赢家</div>
-        <div v-for="w in winners" :key="w.playerId" class="text-sm font-bold" style="color: var(--color-primary)">
+      <div v-if="winners && winners.length" class="last-winners">
+        <div class="lw-label">最后一局赢家</div>
+        <div v-for="w in winners" :key="w.playerId" class="lw-row">
           {{ w.nickname ?? w.playerId }} +{{ w.amount }} ({{ w.handName }})
         </div>
       </div>
 
-      <div class="h-px" style="background-color: var(--color-text-muted)"></div>
+      <div class="divider"></div>
 
-      <!-- Leaderboard -->
-      <div class="space-y-2">
-        <div class="text-xs font-bold" style="color: var(--color-text-muted)">最终排名</div>
-        <div
-          v-for="(entry, i) in leaderboard"
-          :key="entry.playerId"
-          class="flex items-center gap-3 p-2 rounded-lg"
-          :style="{
-            backgroundColor: i === 0 ? 'rgba(255,215,0,0.15)' : 'var(--color-surface)',
-            border: i === 0 ? '1px solid var(--color-gold)' : '1px solid transparent'
-          }"
-        >
-          <span class="text-lg w-8">{{ getMedal(i) }}</span>
-          <span class="flex-1 text-left text-sm font-bold text-white">
-            {{ entry.nickname }}
-            <span v-if="bustedPlayerIds.includes(entry.playerId)" class="text-xs ml-1" style="color: var(--color-accent)">💀</span>
-          </span>
-          <span class="text-xs font-mono" :style="{ color: (entry.netChips ?? 0) >= 0 ? 'var(--color-gold)' : 'var(--color-accent)' }">
-            {{ entry.netChips != null ? (entry.netChips >= 0 ? '+'+entry.netChips : entry.netChips) : entry.chips }}
-          </span>
-        </div>
+      <div class="lb-label">最终排名</div>
+      <div
+        v-for="(entry, i) in leaderboard"
+        :key="entry.playerId"
+        class="lb-row"
+        :class="{ 'first': i === 0 }"
+      >
+        <span class="lb-medal">{{ getMedal(i) }}</span>
+        <span class="lb-name">
+          {{ entry.nickname }}
+          <span v-if="bustedPlayerIds.includes(entry.playerId)" class="lb-skull">💀</span>
+        </span>
+        <span class="lb-chips" :class="{ 'pos': (entry.netChips ?? 0) >= 0, 'neg': (entry.netChips ?? 0) < 0 }">
+          {{ entry.netChips != null ? (entry.netChips >= 0 ? '+' + entry.netChips : entry.netChips) : entry.chips }}
+        </span>
       </div>
 
-      <button
-        class="w-full py-3 rounded-lg font-bold text-white transition active:scale-95"
-        style="background-color: var(--color-primary)"
-        @click="$emit('back-to-lobby')"
-      >
+      <button class="gameover-btn" @click="$emit('back-to-lobby')">
         返回房间
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.gameover-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.7); padding: 0 16px;
+}
+.gameover-modal {
+  width: clamp(300px, 55vw, 520px);
+  background: var(--color-panel-bg);
+  border: 2px solid var(--color-button-shadow);
+  border-radius: 14px;
+  padding: clamp(12px, 3vh, 24px);
+  text-align: center;
+  font-family: 'Press Start 2P', monospace;
+}
+.gameover-trophy { font-size: 48px; }
+.gameover-title {
+  font-size: clamp(13px, 3vh, 18px);
+  font-weight: bold; color: var(--color-gold);
+  margin: 8px 0 16px;
+}
+.last-winners {
+  margin-bottom: 12px;
+}
+.lw-label {
+  font-size: clamp(7px, 1.8vh, 10px);
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+.lw-row {
+  font-size: clamp(8px, 2vh, 11px);
+  font-weight: bold; color: var(--color-primary);
+  margin-bottom: 2px;
+}
+.divider {
+  height: 1px; background: var(--color-text-muted);
+  opacity: 0.3; margin: 12px 0;
+}
+.lb-label {
+  font-size: clamp(7px, 1.8vh, 10px);
+  font-weight: bold; color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+.lb-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px; border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid transparent;
+  margin-bottom: 4px;
+}
+.lb-row.first {
+  background: rgba(255, 215, 0, 0.12);
+  border-color: var(--color-gold);
+}
+.lb-medal { font-size: 18px; width: 32px; }
+.lb-name {
+  flex: 1; text-align: left;
+  font-size: clamp(8px, 2vh, 11px);
+  font-weight: bold; color: var(--color-text-light);
+}
+.lb-skull { font-size: 10px; margin-left: 4px; color: var(--color-accent); }
+.lb-chips {
+  font-size: clamp(7px, 1.8vh, 10px);
+}
+.lb-chips.pos { color: var(--color-gold); }
+.lb-chips.neg { color: var(--color-accent); }
+.gameover-btn {
+  width: 100%; padding: 12px 0; border-radius: 10px; font-weight: bold;
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(9px, 2.3vh, 12px);
+  background: var(--color-primary); color: var(--color-text);
+  border: 2px solid var(--color-button-shadow);
+  box-shadow: 0 2px 0 var(--color-button-shadow);
+  cursor: pointer; transition: transform 0.1s;
+  margin-top: 16px;
+}
+.gameover-btn:active { transform: scale(0.97); }
+</style>

@@ -32,7 +32,7 @@ describe('PlayingCard', () => {
       props: { card: 'Ks', faceUp: true },
     })
     const face = wrapper.find('[data-test="card-face"]')
-    expect(face.classes()).toContain('text-black')
+    expect(face.classes()).toContain('black')
   })
 
   it('renders hearts as red ♥', () => {
@@ -40,7 +40,7 @@ describe('PlayingCard', () => {
       props: { card: 'Qh', faceUp: true },
     })
     const face = wrapper.find('[data-test="card-face"]')
-    expect(face.classes()).toContain('text-red-600')
+    expect(face.classes()).toContain('red')
   })
 
   it('renders ten as T', () => {
@@ -54,7 +54,7 @@ describe('PlayingCard', () => {
     const wrapper = mount(PlayingCard, {
       props: { card: 'Ah', faceUp: true, size: 'sm' },
     })
-    const el = wrapper.find('[data-test="card-face"]')
-    expect(el.classes()).toContain('text-xs')
+    const card = wrapper.find('.card')
+    expect(card.classes()).toContain('sm')
   })
 })

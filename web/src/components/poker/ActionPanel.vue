@@ -32,31 +32,84 @@ const timer=computed(()=>{const s=Math.max(0,Math.floor(p.timeLeftSec));return p
         <input type="range" :min="minB" :max="maxB" v-model.number="clamped" class="slider" />
         <span class="val">{{ clamped }}</span>
       </div>
-      <button data-test="btn-confirm-bet" class="ab raise" @click="confirm">
+      <button data-test="btn-confirm-bet" class="ab raise-btn" @click="confirm">
         {{ canBet?`加注 ${clamped}`:`加注到 ${clamped}` }}
       </button>
     </div>
   </div>
 </template>
 <style scoped>
-.ap { border-radius:16px 16px 0 0; padding:clamp(8px,2vh,14px); background:var(--color-panel-bg);
-  font-family:'Press Start 2P',monospace; transition:opacity .2s; opacity:.75; display:flex; flex-direction:column; gap:clamp(6px,1.5vh,10px); }
-.ap.myturn { opacity:1; }
+.ap {
+  border-radius: 16px 16px 0 0;
+  padding: clamp(8px, 2vh, 14px);
+  background: var(--color-panel-bg);
+  font-family: 'Press Start 2P', monospace;
+  transition: opacity .2s;
+  opacity: .75;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.5vh, 10px);
+}
+.ap.myturn { opacity: 1; }
 .timer { text-align:center; font-size:clamp(10px,2.5vh,14px); font-weight:bold; color:var(--color-text-light); }
 .timer.urgent { color:var(--color-accent); animation:pulse 1s infinite; }
 .wait { text-align:center; font-size:clamp(9px,2.3vh,12px); color:var(--color-text-muted); }
 .go { text-align:center; font-size:clamp(9px,2.3vh,13px); color:var(--color-gold); }
 .row { display:flex; gap:clamp(6px,1.5vh,10px); }
-.ab { font-family:'Press Start 2P',monospace; font-size:clamp(9px,2.3vh,12px); flex:1; padding:clamp(8px,2vh,14px) 8px;
-  border-radius:10px; font-weight:bold; cursor:pointer; letter-spacing:1px; border:2px solid; transition:all .1s; }
+.ab {
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(9px,2.3vh,12px);
+  flex:1; padding:clamp(8px,2vh,14px) 8px;
+  border-radius:10px; font-weight:bold; cursor:pointer;
+  letter-spacing:1px; border:2px solid; transition:all .1s;
+  min-height: 44px;
+}
 .ab:active { transform:scale(.97); }
-.fold { background:var(--color-accent); border-color:#802020; color:var(--color-text-light); box-shadow:0 2px 0 #802020; }
-.ck,.cl { background:var(--color-primary); border-color:var(--color-button-shadow); color:var(--color-text); box-shadow:0 2px 0 var(--color-button-shadow); }
+.fold {
+  background:var(--color-accent); border-color:#802020;
+  color:var(--color-text-light);
+  box-shadow:0 2px 0 #802020;
+}
+.ck,.cl {
+  background:var(--color-primary); border-color:var(--color-button-shadow);
+  color:var(--color-text);
+  box-shadow:0 2px 0 var(--color-button-shadow);
+}
 .bet-area { display:flex; flex-direction:column; gap:clamp(4px,1vh,8px); }
 .slider-row { display:flex; align-items:center; gap:clamp(6px,1.5vh,10px); }
 .slider { flex:1; accent-color:#f0c040; }
-.val { font-size:clamp(9px,2.3vh,13px); font-weight:bold; color:#fff; min-width:44px; text-align:right; }
-.raise { width:100%; font-size:clamp(9px,2.5vh,13px); padding:clamp(8px,2vh,12px) 8px;
-  background:var(--color-gold); border-color:#a08020; color:#382818; box-shadow:0 2px 0 #a08020; }
+.val {
+  font-size:clamp(9px,2.3vh,13px); font-weight:bold;
+  color:#fff; min-width:44px; text-align:right;
+}
+.raise-btn {
+  width:100%; font-size:clamp(9px,2.5vh,13px);
+  padding:clamp(8px,2vh,12px) 8px;
+  background:var(--color-gold); border-color:#a08020;
+  color:#382818; box-shadow:0 2px 0 #a08020;
+  font-family:'Press Start 2P',monospace;
+  border-radius:10px; font-weight:bold; cursor:pointer;
+  border:2px solid; transition:all .1s;
+  min-height: 44px;
+}
+.raise-btn:active { transform: scale(.97); }
+
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* Landscape: horizontal layout */
+@media (orientation: landscape) {
+  .ap {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+  }
+  .row { flex: 0 0 auto; }
+  .bet-area {
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+  }
+  .slider-row { flex: 1; }
+}
 </style>

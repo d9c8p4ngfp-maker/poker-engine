@@ -56,6 +56,7 @@ export const useRoomStore = defineStore('room', () => {
   const initialChips = ref(1000)
   const minRaise = ref(20)
   const dealerIndex = ref(0)
+  const dealerPlayerId = ref<string | null>(null)
   const timeLeftSec = ref(0)
   const myHoleCards = ref<string[]>([])
   const winners = ref<{ playerId: string; handName: string; amount: number }[] | null>(null)
@@ -88,6 +89,7 @@ export const useRoomStore = defineStore('room', () => {
     bigBlind.value = snapshot.bigBlind
     if ((snapshot as any).initialChips) initialChips.value = (snapshot as any).initialChips
     dealerIndex.value = snapshot.dealerIndex
+    dealerPlayerId.value = (snapshot as any).dealerPlayerId ?? null
     minRaise.value = (snapshot as any).minRaise || snapshot.bigBlind || 20
     timeLeftSec.value = snapshot.timeLeftSec
     if (snapshot.myHoleCards) myHoleCards.value = snapshot.myHoleCards
@@ -125,6 +127,7 @@ export const useRoomStore = defineStore('room', () => {
     initialChips.value = 1000
     minRaise.value = 20
     dealerIndex.value = 0
+    dealerPlayerId.value = null
     timeLeftSec.value = 0
     myHoleCards.value = []
     winners.value = null
@@ -137,7 +140,7 @@ export const useRoomStore = defineStore('room', () => {
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
     currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
-    maxSeats, initialChips, minRaise, dealerIndex, timeLeftSec, myHoleCards, winners,
+    maxSeats, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
     updateFromSnapshot, addSystemMessage, setGameOver, reset,
   }

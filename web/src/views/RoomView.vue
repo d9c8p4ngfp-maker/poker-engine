@@ -230,7 +230,7 @@ interface SnapshotPayload {
   players: PlayerView[]
   smallBlind: number
   bigBlind: number
-  dealerIndex: number
+  dealerPlayerId?: string | null
 }
 
 const isMyTurn = computed(() => {
@@ -290,7 +290,7 @@ const tablePlayers = computed(() => {
     holeCards: roomStore.status === 'FINISHED'
       ? (p.holeCards || null)
       : (p.playerId === userStore.playerId ? roomStore.myHoleCards : null),
-    isDealer: p.seatIndex === roomStore.dealerIndex,
+    isDealer: p.playerId === (roomStore.dealerPlayerId ?? ''),
   }))
 })
 
@@ -505,7 +505,7 @@ onUnmounted(() => {
             :players="tablePlayers"
             :community-cards="roomStore.communityCards"
             :pot="roomStore.pot"
-            :dealer-index="roomStore.dealerIndex"
+            :dealer-player-id="roomStore.dealerPlayerId"
             :current-player-index="roomStore.currentPlayerIndex"
             :my-player-id="userStore.playerId"
             :showdown="roomStore.status === 'FINISHED'"

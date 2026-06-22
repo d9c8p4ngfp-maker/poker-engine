@@ -22,7 +22,7 @@ describe('PokerTable', () => {
         players,
         communityCards: [],
         pot: 0,
-        dealerIndex: 0,
+        dealerPlayerId: null,
         currentPlayerIndex: 0,
         myPlayerId: 'A',
       },
@@ -37,7 +37,7 @@ describe('PokerTable', () => {
         players: [mockPlayer('A', 0), mockPlayer('B', 1)],
         communityCards: ['Ah', 'Kh', 'Qh'],
         pot: 200,
-        dealerIndex: 0,
+        dealerPlayerId: null,
         currentPlayerIndex: 0,
         myPlayerId: 'A',
       },
@@ -52,7 +52,7 @@ describe('PokerTable', () => {
         players: [mockPlayer('A', 0), mockPlayer('B', 1)],
         communityCards: [],
         pot: 350,
-        dealerIndex: 0,
+        dealerPlayerId: null,
         currentPlayerIndex: 0,
         myPlayerId: 'A',
       },
@@ -67,7 +67,7 @@ describe('PokerTable', () => {
         players,
         communityCards: [],
         pot: 0,
-        dealerIndex: 0,
+        dealerPlayerId: 'A',
         currentPlayerIndex: 0,
         myPlayerId: 'A',
       },
@@ -82,14 +82,12 @@ describe('PokerTable', () => {
         players,
         communityCards: [],
         pot: 0,
-        dealerIndex: 0,
+        dealerPlayerId: null,
         currentPlayerIndex: 1,
         myPlayerId: 'A',
       },
     })
     const seats = wrapper.findAll('[data-test="seat"]')
-    // Players sorted by seatIndex: A (seat 0) first, B (seat 1) second
-    // currentPlayerIndex is 1 = player B, so seats[1] should be highlighted
     expect(seats[1].classes()).toContain('cur')
   })
 })

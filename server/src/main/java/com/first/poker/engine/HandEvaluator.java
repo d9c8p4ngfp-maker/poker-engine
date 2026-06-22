@@ -55,7 +55,7 @@ public class HandEvaluator {
         if (trips >= 0 && pair1 >= 0) return new HandResult(6_000_000 + trips * 13 + pair1, "Full House", cards);
         if (flush) return new HandResult(5_000_000 + encodeHighCards(ranks), "Flush", cards);
         if (straight) return new HandResult(4_000_000 + highCard, "Straight", cards);
-        if (trips >= 0) return new HandResult(3_000_000 + trips * 169 + topKicker(ranks, count, trips), "Three of a Kind", cards);
+        if (trips >= 0) return new HandResult(3_000_000 + trips * 169 + top2Remaining(ranks, count, trips), "Three of a Kind", cards);
         if (pair2 >= 0) return new HandResult(2_000_000 + pair1 * 169 + pair2 * 13 + topKicker(ranks, count, pair1, pair2), "Two Pair", cards);
         if (pair1 >= 0) return new HandResult(1_000_000 + pair1 * 2197 + top3Remaining(ranks, count, pair1), "One Pair", cards);
         return new HandResult(encodeHighCards(ranks), "High Card", cards);
@@ -86,6 +86,20 @@ public class HandEvaluator {
             if (r != exclude && count[r] > 0) {
                 sum += r * mult;
                 mult /= 13;
+            }
+        }
+        return sum;
+    }
+
+    private static int top2Remaining(int[] ranks, int[] count, int exclude) {
+        int sum = 0;
+        int mult = 13;
+        int found = 0;
+        for (int r = 12; r >= 0 && found < 2; r--) {
+            if (r != exclude && count[r] > 0) {
+                sum += r * mult;
+                mult /= 13;
+                found++;
             }
         }
         return sum;

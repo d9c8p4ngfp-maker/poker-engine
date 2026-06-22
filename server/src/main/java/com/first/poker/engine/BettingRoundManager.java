@@ -44,10 +44,13 @@ public class BettingRoundManager {
                     allIn,
                     player.holeCards()
                 );
+                int raiseIncrement = updated.roundBet(); // from 0 to bet amount
+                int newMinRaise = Math.max(raiseIncrement, s.bigBlindAmount());
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
                     .withPot(s.pot() + actual)
                     .withCurrentBet(updated.roundBet())
+                    .withMinRaise(newMinRaise)
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));
             }
@@ -65,10 +68,13 @@ public class BettingRoundManager {
                     allIn,
                     player.holeCards()
                 );
+                int raiseIncrement = updated.roundBet() - s.currentBet();
+                int newMinRaise = Math.max(raiseIncrement, s.bigBlindAmount());
                 yield advanceToNextActive(s
                     .withUpdatedPlayer(playerIdx, updated)
                     .withPot(s.pot() + actual)
                     .withCurrentBet(updated.roundBet())
+                    .withMinRaise(newMinRaise)
                     .withActedMask(1 << playerIdx)
                     .withLastAggressorIndex(playerIdx));
             }

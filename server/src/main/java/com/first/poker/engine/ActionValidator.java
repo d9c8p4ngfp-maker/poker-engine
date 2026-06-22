@@ -5,28 +5,31 @@ import java.util.List;
 
 public class ActionValidator {
 
-    public static List<GameAction> legalActions(GameState state) {
-        List<GameAction> actions = new ArrayList<>();
+    public record LegalAction(GameAction type, int minAmount, int maxAmount) {}
+
+    public static List<LegalAction> legalActions(GameState state) {
+        List<LegalAction> actions = new ArrayList<>();
         GamePlayerState player = state.currentPlayer();
         if (!isActive(player)) return actions;
 
         int toCall = state.currentBet() - player.roundBet();
 
-        actions.add(GameAction.FOLD);
+        actions.add(new LegalAction(GameAction.FOLD, 0, 0));
 
         if (toCall <= 0) {
-            actions.add(GameAction.CHECK);
+            actions.add(new LegalAction(GameAction.CHECK, 0, 0));
         } else {
-            actions.add(GameAction.CALL);
+            actions.add(new LegalAction(GameAction.CALL, toCall, toCall));
         }
 
         if (state.currentBet() == 0) {
             if (player.chips() >= state.minRaise()) {
-                actions.add(GameAction.BET);
+                actions.add(new LegalAction(GameAction.BET, state.minRaise(), player.chips()));
             }
         } else {
             if (player.chips() > toCall) {
-                actions.add(GameAction.RAISE);
+                int minTotal = state.currentBet() + state.minRaise();
+                actions.add(new LegalAction(GameAction.RAISE, minTotal, player.chips() + player.roundBet()));
             }
         }
 

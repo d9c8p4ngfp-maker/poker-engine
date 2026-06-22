@@ -46,8 +46,8 @@ class PokerEngineFixtureTest {
 
         // B should win everything
         String winner = pots.stream()
-            .filter(p -> p.winnerId().equals("B"))
-            .findFirst().map(SidePotCalculator.PotResult::winnerId).orElse(null);
+            .filter(p -> p.winnerIds().contains("B"))
+            .findFirst().flatMap(p -> p.winnerIds().stream().findFirst()).orElse(null);
         assertNotNull(winner, "B should win at least one pot");
     }
 
@@ -95,7 +95,7 @@ class PokerEngineFixtureTest {
             "Total pot should be 1200: called portion (300) + uncalled return (900)");
         
         // p0 should win all pots
-        boolean p0WinsAll = pots.stream().allMatch(p -> p.winnerId().equals("p0"));
+        boolean p0WinsAll = pots.stream().allMatch(p -> p.winnerIds().contains("p0"));
         assertTrue(p0WinsAll, "p0 should win all pots since p1/p2 have worse hands");
     }
 

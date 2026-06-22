@@ -5,7 +5,7 @@ import java.util.*;
 public class SidePotCalculator {
 
     public record PlayerStake(String playerId, int totalBet, boolean folded) {}
-    public record PotResult(int amount, Set<String> eligiblePlayerIds, String winnerId) {}
+    public record PotResult(int amount, Set<String> eligiblePlayerIds, List<String> winnerIds) {}
 
     public static List<PotResult> calculate(List<PlayerStake> stakes, Map<String, Integer> handRanks) {
         List<PotResult> pots = new ArrayList<>();
@@ -47,7 +47,7 @@ public class SidePotCalculator {
                     // Actually, in our simplified model, we add it as a pot the sole player wins
                     int amount = potTotal;
                     String winner = soleNonFoldedContributor;
-                    pots.add(new PotResult(amount, eligible, winner));
+                    pots.add(new PotResult(amount, eligible, List.of(winner)));
                 } else {
                     int amount = potTotal;
                     var topRank = eligible.stream()
@@ -55,15 +55,15 @@ public class SidePotCalculator {
                         .max();
                     if (topRank.isPresent()) {
                         int bestRank = topRank.getAsInt();
-                        String winner = eligible.stream()
+                        List<String> winners = eligible.stream()
                             .filter(id -> handRanks.getOrDefault(id, -1) == bestRank)
-                            .findFirst().orElse(eligible.iterator().next());
-                        pots.add(new PotResult(amount, eligible, winner));
+                            .toList();
+                        pots.add(new PotResult(amount, eligible, winners));
                     }
                 }
             } else if (contributorCount == 1 && soleNonFoldedContributor != null) {
                 // Sole contributor didn't fold: uncalled bet, return to them
-                pots.add(new PotResult(potTotal, Set.of(soleNonFoldedContributor), soleNonFoldedContributor));
+                pots.add(new PotResult(potTotal, Set.of(soleNonFoldedContributor), List.of(soleNonFoldedContributor)));
             }
             prev = level;
         }

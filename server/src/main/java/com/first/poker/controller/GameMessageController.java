@@ -275,7 +275,7 @@ public class GameMessageController {
             "smallBlind", room.getConfig().getSmallBlind(),
             "bigBlind", room.getConfig().getBigBlind(),
             "maxSeats", room.getConfig().getMaxSeats(),
-            "dealerIndex", room.getDealerIndex(),
+            "dealerPlayerId", room.getDealerPlayerId(),
             "initialChips", room.getConfig().getInitialChips()
         );
     }

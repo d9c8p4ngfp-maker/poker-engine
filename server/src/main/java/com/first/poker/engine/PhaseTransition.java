@@ -11,8 +11,15 @@ public class PhaseTransition {
         deck.shuffle();
 
         int n = players.size();
-        int sbIdx = (dealerIndex + 1) % n;
-        int bbIdx = (dealerIndex + 2) % n;
+        int sbIdx, bbIdx;
+        if (n == 2) {
+            // Heads-up rule: dealer posts small blind and acts first preflop
+            sbIdx = dealerIndex;
+            bbIdx = (dealerIndex + 1) % n;
+        } else {
+            sbIdx = (dealerIndex + 1) % n;
+            bbIdx = (dealerIndex + 2) % n;
+        }
 
         // Deal 2 hole cards to each player
         var mutable = new ArrayList<>(players);
@@ -32,7 +39,8 @@ public class PhaseTransition {
         var fixedPlayers = List.copyOf(mutable);
 
         // Preflop: first to act is UTG = left of big blind
-        int utgIdx = (bbIdx + 1) % n;
+        // Heads-up: dealer (SB) acts first preflop
+        int utgIdx = (n == 2) ? sbIdx : (bbIdx + 1) % n;
 
         // Initial pot includes blind posts (use actual amounts deducted)
         int sbPost = config.getSmallBlind();

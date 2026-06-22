@@ -20,12 +20,16 @@ class ActionValidatorTest {
             20, 0, 0, 10, 20, deck, 0, -1);
     }
 
+    private boolean contains(List<ActionValidator.LegalAction> actions, GameAction type) {
+        return actions.stream().anyMatch(a -> a.type() == type);
+    }
+
     @Test
     void shouldAllowFold() {
         var players = List.of(p("A", 1000, 20, 20));
         var s = state(GamePhase.PRE_FLOP, players, 20);
         var actions = ActionValidator.legalActions(s);
-        assertTrue(actions.contains(GameAction.FOLD));
+        assertTrue(contains(actions, GameAction.FOLD));
     }
 
     @Test
@@ -33,8 +37,8 @@ class ActionValidatorTest {
         var players = List.of(p("A", 1000, 0, 0));
         var s = state(GamePhase.FLOP, players, 0);
         var actions = ActionValidator.legalActions(s);
-        assertTrue(actions.contains(GameAction.CHECK));
-        assertFalse(actions.contains(GameAction.CALL));
+        assertTrue(contains(actions, GameAction.CHECK));
+        assertFalse(contains(actions, GameAction.CALL));
     }
 
     @Test
@@ -42,8 +46,8 @@ class ActionValidatorTest {
         var players = List.of(p("A", 1000, 20, 10));
         var s = state(GamePhase.FLOP, players, 20);
         var actions = ActionValidator.legalActions(s);
-        assertTrue(actions.contains(GameAction.CALL));
-        assertFalse(actions.contains(GameAction.CHECK));
+        assertTrue(contains(actions, GameAction.CALL));
+        assertFalse(contains(actions, GameAction.CHECK));
     }
 
     @Test
@@ -51,7 +55,7 @@ class ActionValidatorTest {
         var players = List.of(p("A", 1000, 0, 0));
         var s = state(GamePhase.FLOP, players, 0);
         var actions = ActionValidator.legalActions(s);
-        assertTrue(actions.contains(GameAction.BET));
+        assertTrue(contains(actions, GameAction.BET));
     }
 
     @Test
@@ -59,9 +63,9 @@ class ActionValidatorTest {
         var players = List.of(p("A", 1000, 20, 0));
         var s = state(GamePhase.FLOP, players, 20);
         var actions = ActionValidator.legalActions(s);
-        assertTrue(actions.contains(GameAction.RAISE));
-        assertTrue(actions.contains(GameAction.CALL));
-        assertTrue(actions.contains(GameAction.FOLD));
+        assertTrue(contains(actions, GameAction.RAISE));
+        assertTrue(contains(actions, GameAction.CALL));
+        assertTrue(contains(actions, GameAction.FOLD));
     }
 
     @Test
@@ -77,10 +81,8 @@ class ActionValidatorTest {
         var players = List.of(p("A", 50, 0, 0));
         var s = state(GamePhase.FLOP, players, 0);
         var actions = ActionValidator.legalActions(s);
-        // BET is allowed, and amount > chips is capped to all-in in processAction
-        assertTrue(actions.contains(GameAction.BET));
+        assertTrue(contains(actions, GameAction.BET));
         assertDoesNotThrow(() -> ActionValidator.validate(s, GameAction.BET, 50));
-        // Amount > chips should NOT throw — the engine caps it to all-in
         assertDoesNotThrow(() -> ActionValidator.validate(s, GameAction.BET, 100));
     }
 

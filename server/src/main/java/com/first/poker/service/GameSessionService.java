@@ -63,7 +63,23 @@ public class GameSessionService {
                 );
             }
 
-            var result = GameEngine.startHand(players, room.getDealerIndex(), room.getConfig());
+            room.setStatus(com.first.poker.model.enums.RoomStatus.PLAYING);
+
+            // On first hand, dealerPlayerId is null. Set it to the first eligible player.
+            if (room.getDealerPlayerId() == null) {
+                room.advanceDealer();
+            }
+
+            // Map dealerPlayerId to index in the filtered participants list
+            int dealerIdx = 0;
+            for (int i = 0; i < players.size(); i++) {
+                if (players.get(i).playerId().equals(room.getDealerPlayerId())) {
+                    dealerIdx = i;
+                    break;
+                }
+            }
+
+            var result = GameEngine.startHand(players, dealerIdx, room.getConfig());
             sessions.put(roomId, result.state());
             return result.state();
         } finally {

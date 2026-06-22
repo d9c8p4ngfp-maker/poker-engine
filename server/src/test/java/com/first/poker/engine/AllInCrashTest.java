@@ -53,7 +53,7 @@ public class AllInCrashTest {
         var pots = HandResolver.distributePots(players, hands);
         System.out.println("  pots=" + pots.size());
         for (var pot : pots) {
-            System.out.println("    winner=" + pot.winnerId() + " amount=" + pot.amount() +
+            System.out.println("    winners=" + pot.winnerIds() + " amount=" + pot.amount() +
                 " eligible=" + pot.eligiblePlayerIds());
         }
 
@@ -62,10 +62,16 @@ public class AllInCrashTest {
         List<Map<String, Object>> winners = new ArrayList<>();
         Map<String, Integer> chipIncreases = new HashMap<>();
         for (var pot : pots) {
-            String winnerId = pot.winnerId();
-            var hand = hands.get(winnerId);
-            winners.add(Map.of("playerId", winnerId, "handName", hand != null ? hand.name() : "Unknown", "amount", pot.amount()));
-            chipIncreases.merge(winnerId, pot.amount(), Integer::sum);
+            List<String> winnerIds = pot.winnerIds();
+            int share = pot.amount() / winnerIds.size();
+            int remainder = pot.amount() % winnerIds.size();
+            for (int w = 0; w < winnerIds.size(); w++) {
+                String wid = winnerIds.get(w);
+                int award = share + (w < remainder ? 1 : 0);
+                var hand = hands.get(wid);
+                winners.add(Map.of("playerId", wid, "handName", hand != null ? hand.name() : "Unknown", "amount", award));
+                chipIncreases.merge(wid, award, Integer::sum);
+            }
         }
         System.out.println("  winners=" + winners);
         System.out.println("  chipIncreases=" + chipIncreases);

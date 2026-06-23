@@ -25,7 +25,8 @@ public class HandResolver {
 
     public static List<SidePotCalculator.PotResult> distributePots(
             List<GamePlayerState> players,
-            Map<String, HandEvaluator.HandResult> hands) {
+            Map<String, HandEvaluator.HandResult> hands,
+            int dealerIndex) {
 
         // Build stakes
         List<SidePotCalculator.PlayerStake> stakes = new ArrayList<>();
@@ -40,6 +41,6 @@ public class HandResolver {
             rankMap.put(entry.getKey(), entry.getValue().rank());
         }
 
-        return SidePotCalculator.calculate(stakes, rankMap);
+        return SidePotCalculator.calculate(stakes, rankMap, dealerIndex);
     }
 }

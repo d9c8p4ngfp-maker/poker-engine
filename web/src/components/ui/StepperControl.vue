@@ -1,18 +1,30 @@
 <script setup lang="ts">
-defineProps<{ modelValue:number; min:number; max:number; step?:number; label:string }>()
+const props = defineProps<{ modelValue:number; min:number; max:number; step?:number; label:string }>()
 const emit = defineEmits<{ 'update:modelValue':[value:number] }>()
-function adjust(d:number, min:number, max:number, s:number, v:number) {
-  const n = Math.max(min, Math.min(max, Math.round((v+d)/s)*s))
+
+function adjust(d:number) {
+  const s = props.step || 1
+  const n = Math.max(props.min, Math.min(props.max, Math.round((props.modelValue + d) / s) * s))
   emit('update:modelValue', n)
+}
+
+function onSlide(e: Event) {
+  const val = Number((e.target as HTMLInputElement).value)
+  const s = props.step || 1
+  emit('update:modelValue', Math.round(val / s) * s)
 }
 </script>
 <template>
   <div class="s" data-test="stepper">
     <div class="sh"><span class="sl">{{ label }}</span><span class="sv">{{ modelValue }}</span></div>
     <div class="sc">
-      <button data-test="stepper-minus" class="sb" @click="adjust(-(step||1),min,max,step||1,modelValue)" :disabled="modelValue<=min">−</button>
-      <div class="st"><div class="sf" :style="{width:((modelValue-min)/(max-min)*100)+'%'}"></div></div>
-      <button data-test="stepper-plus" class="sb" @click="adjust(step||1,min,max,step||1,modelValue)" :disabled="modelValue>=max">+</button>
+      <button data-test="stepper-minus" class="sb" @click="adjust(-(step||1))" :disabled="modelValue<=min">−</button>
+      <div class="track-wrap">
+        <input type="range" class="sr" :min="min" :max="max" :step="step||1"
+          :value="modelValue" @input="onSlide"
+          :style="{ '--pct': ((modelValue - min) / (max - min) * 100) + '%' }" />
+      </div>
+      <button data-test="stepper-plus" class="sb" @click="adjust(step||1)" :disabled="modelValue>=max">+</button>
     </div>
   </div>
 </template>
@@ -27,6 +39,19 @@ function adjust(d:number, min:number, max:number, s:number, v:number) {
   border-radius:6px;background:rgba(140,96,56,0.92);color:var(--color-text-light);cursor:pointer;transition:all 0.1s;padding:0;line-height:1}
 .sb:active:not(:disabled){transform:scale(.92)}
 .sb:disabled{opacity:.35;cursor:default}
-.st{flex:1;height:clamp(8px,2vh,12px);background:var(--color-input-bg);border-radius:5px;overflow:hidden;border:1px solid var(--color-border)}
-.sf{height:100%;background:var(--color-primary);border-radius:5px;transition:width .2s}
+.track-wrap{flex:1;position:relative;height:clamp(28px,6vh,40px);display:flex;align-items:center}
+.sr{-webkit-appearance:none;appearance:none;width:100%;height:clamp(8px,2vh,12px);
+  background:linear-gradient(to right, var(--color-primary) var(--pct, 0%), var(--color-input-bg) var(--pct, 0%));
+  border-radius:5px;border:1px solid var(--color-border);outline:none;cursor:pointer;margin:0}
+.sr::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:clamp(20px,4.5vw,28px);height:clamp(20px,4.5vw,28px);
+  border-radius:50%;background:var(--color-gold);border:2px solid var(--color-button-shadow);
+  box-shadow:0 2px 4px rgba(0,0,0,0.3);cursor:grab}
+.sr::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1.15)}
+.sr::-moz-range-thumb{width:clamp(20px,4.5vw,28px);height:clamp(20px,4.5vw,28px);
+  border-radius:50%;background:var(--color-gold);border:2px solid var(--color-button-shadow);
+  box-shadow:0 2px 4px rgba(0,0,0,0.3);cursor:grab}
+.sr::-moz-range-track{height:clamp(8px,2vh,12px);background:var(--color-input-bg);
+  border-radius:5px;border:1px solid var(--color-border)}
+.sr::-moz-range-progress{height:100%;background:var(--color-primary);border-radius:5px}
 </style>

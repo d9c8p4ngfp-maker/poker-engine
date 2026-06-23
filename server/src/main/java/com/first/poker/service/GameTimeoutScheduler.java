@@ -1,6 +1,8 @@
 package com.first.poker.service;
 
-import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.annotation.PreDestroy;
 
 import java.util.Map;
@@ -12,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 public class GameTimeoutScheduler {
+    private static final Logger log = LoggerFactory.getLogger(GameTimeoutScheduler.class);
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
         Math.max(4, Runtime.getRuntime().availableProcessors()));
@@ -52,7 +55,7 @@ public class GameTimeoutScheduler {
 
     @PreDestroy
     public void shutdown() {
-        System.out.println("[TIMEOUT-SCHEDULER] Shutting down executor");
+        log.info("[TIMEOUT-SCHEDULER] Shutting down executor");
         executor.shutdown();
     }
 }

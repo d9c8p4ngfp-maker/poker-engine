@@ -50,7 +50,7 @@ public class AllInCrashTest {
 
         // Step 2: Distribute pots
         System.out.println("Step 2: distributePots...");
-        var pots = HandResolver.distributePots(players, hands);
+        var pots = HandResolver.distributePots(players, hands, 0);
         System.out.println("  pots=" + pots.size());
         for (var pot : pots) {
             System.out.println("    winners=" + pot.winnerIds() + " amount=" + pot.amount() +

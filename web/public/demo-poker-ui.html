@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Poker — Tavern UI Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  :root {
+    --card-native-w: 68;
+    --card-native-h: 94;
+    --table-card-scale: 2.2;
+    --hole-card-scale: 1.5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a0a04;
+    font-family: 'Press Start 2P', monospace;
+    color: #d8c8a0;
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---- TAVERN BACKGROUND ---- */
+  .tavern-bg {
+    position: fixed; inset: 0;
+    background: url('tavern-bg-3x.png') center/cover no-repeat;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    z-index: 0;
+  }
+
+  /* warm overlay */
+  .tavern-bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(10,4,0,0.55) 100%);
+    pointer-events: none;
+  }
+
+  /* scanlines */
+  .scanlines {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+  }
+
+  /* vignette */
+  .vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    box-shadow: inset 0 0 120px rgba(0,0,0,0.5);
+  }
+
+  /* ---- SCENE ---- */
+  .scene {
+    position: relative;
+    z-index: 2;
+    width: min(900px, 98vw);
+    height: min(600px, 70vh);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---- TABLE ---- */
+  .table-oval {
+    position: absolute;
+    width: 76%;
+    height: 58%;
+    left: 50%; top: 48%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 45% 45%, #2a7a2a 0%, #1a5c1a 30%, #0f3a0f 70%, #082008 100%);
+    border: 6px solid #5a3a20;
+    box-shadow:
+      0 0 0 10px #2a1808,
+      0 0 0 16px #3a2010,
+      0 0 60px rgba(0,0,0,0.5),
+      inset 0 0 60px rgba(0,0,0,0.3);
+    z-index: 3;
+  }
+
+  /* felt texture dots */
+  .table-oval::after {
+    content: '';
+    position: absolute; inset: 20px;
+    border-radius: 50%;
+    opacity: 0.04;
+    background: radial-gradient(circle at 30% 40%, #fff 0.5px, transparent 0.5px);
+    background-size: 12px 12px;
+    pointer-events: none;
+  }
+
+  /* ---- COMMUNITY CARDS ---- */
+  .community {
+    position: absolute;
+    left: 50%; top: 33%;
+    transform: translate(-50%, -50%);
+    display: flex; gap: 4px;
+    z-index: 5;
+  }
+
+  .tcard {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border-radius: 3px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    width: calc(var(--card-native-w) * 1px * var(--table-card-scale));
+    height: calc(var(--card-native-h) * 1px * var(--table-card-scale));
+  }
+  .tcard.face-up {
+    background-image: url('pixel-cards-fronts.png');
+    background-size: calc(926px * var(--table-card-scale)) calc(391px * var(--table-card-scale));
+  }
+  .tcard.face-down {
+    background: url('card-back.png') center/cover no-repeat;
+    image-rendering: pixelated;
+    opacity: 0.4;
+  }
+  .tcard.dealt { animation: dealIn 0.25s ease-out both; }
+  @keyframes dealIn {
+    from { opacity: 0; transform: translateY(-20px) scale(0.7); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* ---- POT ---- */
+  .pot-area {
+    position: absolute;
+    left: 50%; top: 48%;
+    transform: translate(-50%, -50%);
+    z-index: 4;
+    text-align: center;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    pointer-events: none;
+  }
+  .pot-label { font-size: 7px; color: #8a7a50; letter-spacing: 1px; }
+  .pot-amount {
+    font-size: 14px;
+    color: #e0c060;
+    text-shadow: 0 0 10px rgba(224,192,96,0.4);
+    transition: transform 0.15s;
+  }
+
+  /* ---- PLAYER SEATS ---- */
+  .seat {
+    position: absolute; z-index: 6;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    transform: translate(-50%, -50%);
+  }
+  .seat.active .seat-box { border-color: #e0c060; box-shadow: 0 0 12px rgba(224,192,96,0.5); }
+  .seat.me .seat-box { border-color: #6090d0; box-shadow: 0 0 10px rgba(96,144,208,0.4); }
+  .seat.folded .seat-box { opacity: 0.35; filter: grayscale(0.6); }
+
+  .seat-box {
+    background: rgba(10,6,2,0.78);
+    border: 2px solid #3a2a18;
+    border-radius: 5px;
+    padding: 3px 6px;
+    min-width: 80px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    backdrop-filter: blur(2px);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .seat-name {
+    font-size: 6px;
+    color: #d8c8a0;
+    max-width: 70px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: center;
+  }
+  .seat-chips { font-size: 6px; color: #e0c060; }
+  .seat-bet   { font-size: 6px; color: #e06050; min-height: 1em; }
+
+  .seat-cards { display: flex; gap: 2px; }
+
+  .hcard {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border-radius: 2px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    width: calc(var(--card-native-w) * 1px * var(--hole-card-scale));
+    height: calc(var(--card-native-h) * 1px * var(--hole-card-scale));
+  }
+  .hcard.face-up {
+    background-image: url('pixel-cards-fronts.png');
+    background-size: calc(926px * var(--hole-card-scale)) calc(391px * var(--hole-card-scale));
+  }
+  .hcard.face-down {
+    background-image: url('card-back.png');
+    background-size: cover;
+  }
+
+  .seat-badge {
+    font-size: 6px; padding: 1px 4px; border-radius: 2px;
+  }
+  .badge-dealer { background: #e0c060; color: #1a0a04; }
+  .badge-allin  { background: #e05050; color: #fff; animation: pulse 0.7s infinite alternate; }
+  .badge-folded { background: #444;  color: #888; }
+  @keyframes pulse { from{opacity:0.6} to{opacity:1} }
+
+  /* ---- PHASE INDICATOR ---- */
+  .phase-indicator {
+    position: absolute;
+    left: 50%; top: 5%;
+    transform: translateX(-50%);
+    z-index: 7;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .phase-dot {
+    width: 6px; height: 6px;
+    border-radius: 1px;
+    background: #3a2a18;
+    transition: all 0.3s;
+  }
+  .phase-dot.active { background: #e0c060; box-shadow: 0 0 6px rgba(224,192,96,0.5); }
+  .phase-dot.done { background: #6a5a38; }
+  .phase-text {
+    font-size: 7px; color: #e0c060;
+    text-shadow: 0 0 6px rgba(224,192,96,0.3);
+    letter-spacing: 2px;
+  }
+
+  /* ---- ACTION PANEL ---- */
+  .actions {
+    position: absolute;
+    left: 50%; bottom: 3%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 8px 14px;
+    border: 2px solid;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.1s;
+    color: #fff;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn-fold  { background: rgba(80,30,24,0.9); border-color: #803030; }
+  .btn-check { background: rgba(24,40,60,0.9); border-color: #305080; }
+  .btn-call  { background: rgba(24,60,30,0.9); border-color: #308040; }
+  .btn-raise { background: rgba(60,60,20,0.9); border-color: #a09030; }
+  .btn-fold:hover  { box-shadow: 0 0 10px rgba(224,80,80,0.4); }
+  .btn-check:hover { box-shadow: 0 0 10px rgba(80,140,220,0.4); }
+  .btn-call:hover  { box-shadow: 0 0 10px rgba(60,180,80,0.4); }
+  .btn-raise:hover { box-shadow: 0 0 10px rgba(224,192,96,0.4); }
+  .btn:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+
+  /* ---- RAISE SLIDER ---- */
+  .raise-panel {
+    position: absolute;
+    left: 50%; bottom: 14%;
+    transform: translateX(-50%);
+    z-index: 11;
+    display: none;
+    align-items: center; gap: 6px;
+    background: rgba(10,6,2,0.92);
+    border: 2px solid #a09030;
+    border-radius: 4px;
+    padding: 6px 12px;
+  }
+  .raise-panel input[type=range] { width: 100px; accent-color: #e0c060; }
+  .raise-panel .raise-val { font-size: 8px; color: #e0c060; min-width: 40px; text-align: right; }
+  .raise-panel .btn-go,
+  .raise-panel .btn-cancel { font-size: 7px; padding: 4px 8px; }
+
+  /* ---- LOG ---- */
+  .log {
+    position: absolute;
+    right: 1%; top: 8%; bottom: 8%;
+    width: 130px;
+    background: rgba(10,6,2,0.75);
+    border: 1px solid #3a2a18;
+    border-radius: 3px;
+    padding: 4px;
+    overflow-y: auto;
+    z-index: 8;
+    font-size: 5px; line-height: 1.9;
+    display: flex; flex-direction: column; gap: 1px;
+    backdrop-filter: blur(1px);
+  }
+  .log-entry { padding: 1px 3px; border-radius: 1px; animation: fadeIn 0.2s; }
+  .log-act  { color: #e0c060; }
+  .log-sys  { color: #8a7a50; }
+  .log-fold { color: #a06050; }
+  .log-allin{ color: #e05050; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  /* ---- NEW HAND BUTTON ---- */
+  .btn-new-hand {
+    position: absolute; top: 2%; right: 2%;
+    z-index: 12;
+    background: transparent; border: 1px solid #6a5a38;
+    color: #8a7a50;
+  }
+  .btn-new-hand:hover { border-color: #e0c060; color: #e0c060; }
+
+  /* ---- responsive ---- */
+  @media (max-width: 768px) {
+    :root { --table-card-scale: 1.5; --hole-card-scale: 1.1; }
+    .log { display: none; }
+    .btn { font-size: 6px; padding: 6px 10px; }
+    .phase-text { font-size: 6px; }
+    .scene { height: min(500px, 60vh); }
+  }
+  @media (max-width: 480px) {
+    :root { --table-card-scale: 1.1; --hole-card-scale: 0.9; }
+    .btn { font-size: 5px; padding: 5px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tavern-bg"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<div class="scene" id="scene">
+
+  <div class="table-oval"></div>
+
+  <!-- phase -->
+  <div class="phase-indicator">
+    <span class="phase-dot active" data-p="preflop"></span>
+    <span class="phase-dot" data-p="flop"></span>
+    <span class="phase-dot" data-p="turn"></span>
+    <span class="phase-dot" data-p="river"></span>
+    <span class="phase-text" id="phase-text">PRE-FLOP</span>
+  </div>
+
+  <!-- community cards -->
+  <div class="community" id="community"></div>
+
+  <!-- pot -->
+  <div class="pot-area">
+    <span class="pot-label">POT</span>
+    <span class="pot-amount" id="pot-amount">0</span>
+  </div>
+
+  <!-- seats -->
+  <div id="seats"></div>
+
+  <!-- actions -->
+  <div class="actions" id="actions">
+    <button class="btn btn-fold" onclick="act('fold')">FOLD</button>
+    <button class="btn btn-check" onclick="act('check')">CHECK</button>
+    <button class="btn btn-call" onclick="act('call')">CALL <span id="call-val"></span></button>
+    <button class="btn btn-raise" onclick="act('raise')">RAISE</button>
+  </div>
+
+  <!-- raise slider -->
+  <div class="raise-panel" id="raise-panel">
+    <span style="font-size:6px;color:#888;">RAISE</span>
+    <input type="range" id="raise-slider" oninput="updSlider()">
+    <span class="raise-val" id="raise-val">0</span>
+    <button class="btn btn-raise btn-go" onclick="confirmRaise()">GO</button>
+    <button class="btn btn-fold btn-cancel" onclick="cancelRaise()">✕</button>
+  </div>
+
+  <!-- log -->
+  <div class="log" id="log"></div>
+
+  <!-- new hand -->
+  <button class="btn btn-new-hand" style="font-size:6px;padding:4px 8px;position:absolute;top:2%;right:2%;z-index:12;background:transparent;border:1px solid #6a5a38;color:#8a7a50;cursor:pointer;" onclick="newHand()">NEW HAND</button>
+
+</div>
+
+<script>
+// ===== SPRITE HELPERS =====
+const CW=68, CH=94, MG=3, GP=3, CS=CW+GP, RS=CH+GP;
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUIT_ROW={s:0,h:1,c:2,d:3,f:null};
+
+function bgPos(ri,sr,scale) {
+  return `left ${-(MG+ri*CS)*scale}px top ${-(MG+sr*RS)*scale}px`;
+}
+
+// ===== SEAT POSITIONS (6 players, oval) =====
+// x,y are % positioning relative to scene container
+const SEAT6 = [
+  {id:'p0',name:'You',  chips:2500, x:50,y:82, me:true},
+  {id:'p1',name:'Neo',  chips:1800, x:87,y:60},
+  {id:'p2',name:'Zed',  chips:3200, x:86,y:23},
+  {id:'p3',name:'Lynx', chips:900,  x:50,y:8},
+  {id:'p4',name:'Taro', chips:1500, x:14,y:23},
+  {id:'p5',name:'Raven',chips:2100, x:13,y:60},
+];
+
+// ===== GAME STATE =====
+let st={};
+
+function log(msg,cls='sys') {
+  const d=document.createElement('div');
+  d.className='log-entry log-'+cls;
+  d.textContent='> '+msg;
+  const le=document.getElementById('log');
+  le.prepend(d);
+  while(le.children.length>40) le.lastChild.remove();
+}
+
+function rndCard() {
+  const s=['s','h','c','d'][Math.floor(Math.random()*4)];
+  return RANKS[Math.floor(Math.random()*13)]+s;
+}
+function idxOf(rank) { return RANKS.indexOf(rank); }
+
+function newHand() {
+  const sb=(st.dealer||5)+1, bb=(st.dealer||5)+2;
+  const N=6;
+  st={
+    phase:'preflop', pot:0, curBet:20, active:0, dealer:(st.dealer||5)+1,
+    players: SEAT6.map((s,i)=>({
+      ...s, idx:i,
+      hole:[rndCard(),rndCard()],
+      bet:0, folded:false, allIn:false, acted:false,
+    })),
+    comm:[], pendRaise:false,
+  };
+  st.dealer %= N;
+  // blinds
+  const si=(st.dealer+1)%N, bi=(st.dealer+2)%N;
+  const sp=st.players[si], bp=st.players[bi];
+  sp.bet=sp.bet=Math.min(10,sp.chips); sp.chips-=sp.bet;
+  bp.bet=Math.min(20,bp.chips); bp.chips-=bp.bet;
+  st.pot=sp.bet+bp.bet; st.curBet=bp.bet;
+  st.active=nextAct((st.dealer+3)%N);
+  log('NEW HAND ---');
+  log(bp.name+' posts BB '+bp.bet);
+  log(sp.name+' posts SB '+sp.bet);
+  if(st.active>=0) log(st.players[st.active].name+' to act','act');
+  else nextPhase();
+  render();
+}
+
+function nextAct(from) {
+  for(let i=0;i<6;i++) {
+    const x=(from+i)%6, p=st.players[x];
+    if(!p.folded&&!p.allIn&&p.chips>0) return x;
+  }
+  return -1;
+}
+
+function nextPhase() {
+  const ph=['preflop','flop','turn','river'];
+  const ci=ph.indexOf(st.phase);
+  if(ci>=3) { showdown(); return; }
+  st.phase=ph[ci+1];
+  st.players.forEach(p=>{p.bet=0;p.acted=false;});
+  st.curBet=0;
+  if(st.phase==='flop') { st.comm=[rndCard(),rndCard(),rndCard()]; log('--- FLOP ---'); }
+  else if(st.phase==='turn') { st.comm.push(rndCard()); log('--- TURN ---'); }
+  else if(st.phase==='river') { st.comm.push(rndCard()); log('--- RIVER ---'); }
+  st.active=nextAct((st.dealer+1)%6);
+  if(st.active>=0) log(st.players[st.active].name+' to act','act');
+  else nextPhase();
+  render();
+}
+
+function showdown() {
+  st.phase='showdown';
+  log('--- SHOWDOWN ---');
+  const cand=st.players.filter(p=>!p.folded);
+  const win=cand[Math.floor(Math.random()*cand.length)];
+  win.chips+=st.pot; log(win.name+' wins '+st.pot+'!','act');
+  st.pot=0; render();
+  setTimeout(newHand,2500);
+}
+
+function act(a) {
+  if(st.phase==='showdown') return;
+  const p=st.players[st.active];
+  if(!p||p.folded||p.allIn) return;
+  if(a==='raise') {
+    st.pendRaise=true;
+    const mn=st.curBet*2, mx=p.chips+p.bet;
+    const sl=document.getElementById('raise-slider');
+    sl.min=mn; sl.max=mx; sl.value=Math.min(mn,mx);
+    document.getElementById('raise-panel').style.display='flex';
+    updSlider(); return;
+  }
+  apply(a,0);
+}
+function confirmRaise() {
+  const amt=parseInt(document.getElementById('raise-val').textContent);
+  st.pendRaise=false;
+  document.getElementById('raise-panel').style.display='none';
+  apply('raise',amt);
+}
+function cancelRaise() {
+  st.pendRaise=false;
+  document.getElementById('raise-panel').style.display='none';
+}
+function updSlider() {
+  document.getElementById('raise-val').textContent=document.getElementById('raise-slider').value;
+}
+
+function apply(a,raiseAmt) {
+  const p=st.players[st.active], op=st.pot;
+  if(a==='fold') { p.folded=true; log(p.name+' folds','fold'); }
+  else if(a==='check') { log(p.name+' checks'); }
+  else if(a==='call') {
+    const tc=st.curBet-p.bet, ac=Math.min(tc,p.chips);
+    p.chips-=ac; p.bet+=ac; st.pot+=ac;
+    if(p.chips===0) { p.allIn=true; log(p.name+' calls ALL-IN!','allin'); }
+    else log(p.name+' calls '+ac);
+  }
+  else if(a==='raise') {
+    const amt=raiseAmt||st.curBet*2, delta=amt-p.bet, ac=Math.min(delta,p.chips);
+    p.chips-=ac; p.bet+=ac; st.pot+=ac; st.curBet=p.bet;
+    if(p.chips===0) { p.allIn=true; log(p.name+' raises ALL-IN '+amt+'!','allin'); }
+    else log(p.name+' raises '+amt,'act');
+    for(let i=0;i<6;i++) {
+      if(i!==st.active) st.players[i].acted=false;
+    }
+  }
+  p.acted=true;
+  if(st.pot>op) {
+    const el=document.getElementById('pot-amount');
+    el.style.transform='scale(1.25)';
+    setTimeout(()=>el.style.transform='scale(1)',120);
+  }
+  const nx=nextAct(st.active+1);
+  if(nx<0) nextPhase();
+  else { st.active=nx; log(st.players[nx].name+' to act','act'); render(); }
+}
+
+function render() {
+  // Phase
+  document.getElementById('phase-text').textContent=
+    st.phase==='showdown'?'SHOWDOWN':st.phase.toUpperCase();
+  const ph=['preflop','flop','turn','river'];
+  const ci=ph.indexOf(st.phase);
+  document.querySelectorAll('.phase-dot').forEach(d=>{
+    d.classList.remove('active','done');
+    const di=ph.indexOf(d.dataset.p);
+    if(di<ci) d.classList.add('done');
+    else if(di===ci) d.classList.add('active');
+  });
+
+  // Pot
+  document.getElementById('pot-amount').textContent=st.pot;
+
+  // Community cards
+  const commEl=document.getElementById('community');
+  const ts=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--table-card-scale'));
+  const total=st.phase==='flop'?3:st.phase==='turn'?4:st.phase==='river'||st.phase==='showdown'?5:0;
+  commEl.innerHTML='';
+  if(total>0) {
+    for(let i=0;i<total;i++) {
+      if(i<st.comm.length) {
+        const r=idxOf(st.comm[i].slice(0,-1)), s=SUIT_ROW[st.comm[i].slice(-1).toLowerCase()];
+        const d=document.createElement('div');
+        d.className='tcard face-up dealt';
+        d.style.backgroundPosition=bgPos(r,s,ts);
+        commEl.appendChild(d);
+      } else {
+        const d=document.createElement('div');
+        d.className='tcard face-down';
+        commEl.appendChild(d);
+      }
+    }
+  } else {
+    // placeholder cards dimmed
+    for(let i=0;i<5;i++) {
+      const d=document.createElement('div');
+      d.className='tcard face-down';
+      d.style.opacity='0.18';
+      commEl.appendChild(d);
+    }
+  }
+
+  // Seats
+  const seatsEl=document.getElementById('seats');
+  const hs=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hole-card-scale'));
+  seatsEl.innerHTML='';
+  st.players.forEach(p=>{
+    const d=document.createElement('div');
+    d.className='seat';
+    if(p.idx===st.active) d.classList.add('active');
+    if(p.me) d.classList.add('me');
+    if(p.folded) d.classList.add('folded');
+    d.style.left=p.x+'%'; d.style.top=p.y+'%';
+
+    let badges='';
+    if(p.idx===st.dealer) badges+='<span class="seat-badge badge-dealer">D</span>';
+    if(p.allIn) badges+='<span class="seat-badge badge-allin">ALL</span>';
+    if(p.folded) badges+='<span class="seat-badge badge-folded">FOLD</span>';
+
+    const show=(p.me||(st.phase==='showdown'&&!p.folded));
+
+    let hc1='face-down', hc2='face-down';
+    let bg1='', bg2='';
+    if(show && p.hole[0]) {
+      const r1=idxOf(p.hole[0].slice(0,-1)), s1=SUIT_ROW[p.hole[0].slice(-1).toLowerCase()];
+      if(r1>=0&&s1!=null) { hc1='face-up'; bg1=bgPos(r1,s1,hs); }
+    }
+    if(show && p.hole[1]) {
+      const r2=idxOf(p.hole[1].slice(0,-1)), s2=SUIT_ROW[p.hole[1].slice(-1).toLowerCase()];
+      if(r2>=0&&s2!=null) { hc2='face-up'; bg2=bgPos(r2,s2,hs); }
+    }
+
+    d.innerHTML=`
+      <div class="seat-box">
+        <div style="display:flex;gap:2px;align-items:center;">${badges}<span class="seat-name">${p.name}</span></div>
+        <span class="seat-chips">${p.chips}</span>
+        <span class="seat-bet">${p.bet>0?'BET '+p.bet:''}</span>
+        <div class="seat-cards">
+          <div class="hcard ${hc1}${show?' dealt':''}" style="${bg1?`background-position:${bg1};`:''}"></div>
+          <div class="hcard ${hc2}${show?' dealt':''}" style="${bg2?`background-position:${bg2};`:''}"></div>
+        </div>
+      </div>
+    `;
+    seatsEl.appendChild(d);
+  });
+
+  // Action buttons
+  const cp=st.players[st.active];
+  const canCheck=cp&&st.curBet<=cp.bet;
+  const toCall=cp?st.curBet-cp.bet:0;
+  document.getElementById('call-val').textContent=toCall>0?' '+toCall:'';
+  document.querySelector('.btn-fold').disabled=!cp||st.phase==='showdown';
+  document.querySelector('.btn-check').disabled=!canCheck||st.phase==='showdown';
+  document.querySelector('.btn-call').disabled=toCall<=0||st.phase==='showdown';
+  document.querySelector('.btn-raise').disabled=!cp||cp.chips===0||st.phase==='showdown';
+}
+
+// Init
+st.dealer=5;
+newHand();
+</script>
+</body>
+</html>

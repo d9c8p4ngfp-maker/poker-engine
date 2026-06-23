@@ -22,6 +22,12 @@ public class RoomConfig {
     private boolean recordHistory;
     private boolean bustEndsGame;
 
+    private boolean bonus27Enabled = false;
+    private int bonus27Amount = 0;
+    private boolean bonusStraightFlushEnabled = false;
+    private int bonusStraightFlushAmount = 0;
+    private boolean bonusRoyalFlushDouble = true;
+
     public static RoomConfig withDefaults() {
         RoomConfig c = new RoomConfig();
         c.name = "默认牌局";

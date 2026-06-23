@@ -5,6 +5,7 @@ import { useWebSocket, setWsLogger } from '../composables/useWebSocket'
 import { useRoomStore } from '../stores/room'
 import { useUserStore } from '../stores/user'
 import { useLogger } from '../composables/useLogger'
+import BonusAlert from '../components/poker/BonusAlert.vue'
 import { API_BASE_URL } from '../config'
 
 const logger = useLogger()
@@ -45,6 +46,13 @@ const addingBot = ref(false)
 const localCountdown = ref(0)
 const showBustChoice = ref(false)
 const showLeaderboard = ref(false)
+const bonusAlert = ref<{
+  bonusType: '27_GAME' | 'STRAIGHT_FLUSH' | 'ROYAL_FLUSH'
+  winnerName: string
+  bonusPerPlayer: number
+  transfers: Record<string, number>
+} | null>(null)
+const bonusQueue: Array<typeof bonusAlert.value> = []
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
@@ -69,6 +77,7 @@ onMounted(async () => {
 
   subscribe(`/topic/room/${roomId}`, (msg) => {
     const data = JSON.parse(msg.body)
+    console.log('[RoomView] room msg:', JSON.stringify(data).slice(0, 200))
 
     if (data.type === 'room_dissolved') {
       logger.logState('room_dissolved', { roomId, initiator: data.playerId })
@@ -105,6 +114,7 @@ onMounted(async () => {
     if (data.type === 'system') {
       roomStore.addSystemMessage(data.text)
     } else if (data.roomId) {
+      console.log('[RoomView] ROOM-MSG status:', data.status, 'prevStatus:', roomStore.status)
       roomStore.roomId = data.roomId
       roomStore.roomName = data.name || ''
       roomStore.status = data.status || 'WAITING'
@@ -114,6 +124,7 @@ onMounted(async () => {
         holeCards: null, lastAction: null, connected: p.connected,
         borrowCount: p.borrowCount || 0,
         owner: p.owner || false,
+        inGame: (p as any).inGame,
       }))
       roomStore.smallBlind = data.smallBlind || 10
       roomStore.bigBlind = data.bigBlind || 20
@@ -125,6 +136,7 @@ onMounted(async () => {
   subscribe(`/topic/room/${roomId}/game`, (msg) => {
     const data = JSON.parse(msg.body)
     if (data.leaderboard) {
+      console.log('[RoomView] GAME-MSG leaderboard arrived, winners:', data.winners?.length, 'busted:', data.bustedPlayerIds?.length)
       logger.logState('game_over', { leaderboard: data.leaderboard.length, busted: data.bustedPlayerIds?.length })
       showBustChoice.value = false
       roomStore.setGameOver(data)
@@ -142,6 +154,7 @@ onMounted(async () => {
       stopCountdown()
       roomStore.winners = data.winners
     } else {
+      console.log('[RoomView] GAME-MSG status:', data.status, 'cp:', data.currentPlayerId?.slice(0,10), 'myTurn:', isMyTurn.value, 'roomStatus:', roomStore.status)
       roomStore.winners = null
       roomStore.gameOver = false
       roomStore.leaderboard = []
@@ -154,6 +167,20 @@ onMounted(async () => {
 
   subscribe(`/topic/player/${userStore.playerId}/game`, (msg) => {
     const data = JSON.parse(msg.body)
+    if (data.type === 'bonus') {
+      const alert = {
+        bonusType: data.bonusType,
+        winnerName: roomStore.players.find(p => p.playerId === data.winnerId)?.nickname || '???',
+        bonusPerPlayer: data.bonusPerPlayer,
+        transfers: data.transfers || {},
+      }
+      if (bonusAlert.value) {
+        bonusQueue.push(alert)
+      } else {
+        bonusAlert.value = alert
+      }
+      return
+    }
     if (data.type === 'bust_choice') {
       showBustChoice.value = true
       return
@@ -165,6 +192,7 @@ onMounted(async () => {
       return
     }
     if (data.winners) return
+    console.log('[RoomView] PERSONAL-GAME-MSG cp:', data.currentPlayerId?.slice(0,10), 'roomStatus:', roomStore.status)
     roomStore.updateFromSnapshot(data, userStore.playerId)
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
@@ -182,7 +210,11 @@ onMounted(async () => {
 })
 
 // Watch for status change to switch background to game table
-watch(() => roomStore.status, (newStatus) => {
+watch(() => roomStore.status, (newStatus, oldStatus) => {
+  console.log('[RoomView] STATUS CHANGED:', oldStatus, '→', newStatus)
+  if (newStatus === 'WAITING' && oldStatus === 'FINISHED') {
+    console.trace('[RoomView] WHO SET STATUS TO WAITING?')
+  }
   const bgLayer = document.querySelector('.bg-layer') as HTMLElement
   if (!bgLayer) return
   if (newStatus === 'PLAYING' || newStatus === 'FINISHED') {
@@ -272,9 +304,9 @@ const startBlockReason = computed(() => {
   if (roomStore.status !== 'WAITING') return ''
   if (roomStore.players.length < 2) return '至少需要2人才能开始'
   const owner = roomStore.players.find(p => p.owner)
-  if (owner && owner.chips <= 0) return '房主没有筹码，请先借筹码'
+  if (owner && owner.chips <= 0) return '你当前没有筹码，请先借筹码'
   const withChips = roomStore.players.filter(p => p.chips > 0).length
-  if (withChips < 2) return '有玩家筹码归零，请等待借筹码或添加新机器人'
+  if (withChips < 2) return `目前有筹码的玩家不足2人（仅${withChips}人），请添加机器人`
   return ''
 })
 
@@ -291,6 +323,7 @@ const tablePlayers = computed(() => {
       ? (p.holeCards || null)
       : (p.playerId === userStore.playerId ? roomStore.myHoleCards : null),
     isDealer: p.playerId === (roomStore.dealerPlayerId ?? ''),
+    inGame: p.inGame ?? (p.chips > 0),
   }))
 })
 
@@ -360,11 +393,15 @@ async function refreshRoom() {
         holeCards: null, lastAction: null, connected: p.connected,
         borrowCount: p.borrowCount || 0,
         owner: p.owner || false,
+        inGame: (p as any).inGame,
       }))
       roomStore.smallBlind = data.smallBlind
       roomStore.bigBlind = data.bigBlind
       roomStore.maxSeats = (data as any).maxSeats || 8
       roomStore.initialChips = (data as any).initialChips || 1000
+      if ((data as any).dealerPlayerId != null) {
+        roomStore.dealerPlayerId = (data as any).dealerPlayerId
+      }
     } else {
       roomStore.roomId = ''
     }
@@ -394,6 +431,10 @@ async function handleAddBot() {
   }
 }
 
+function onBonusClose() {
+  bonusAlert.value = bonusQueue.shift() ?? null
+}
+
 function handleLeave() {
   logger.logAction('leave_room', { roomId, status: roomStore.status })
   send(`/app/room/${roomId}/leave`, { playerId: userStore.playerId })
@@ -402,14 +443,14 @@ function handleLeave() {
   router.push('/')
 }
 
-function handleBackToRoom() {
+async function handleBackToRoom() {
   logger.logAction('back_to_lobby', { roomId })
   roomStore.gameOver = false
   roomStore.winners = null
   roomStore.leaderboard = []
   roomStore.bustedPlayerIds = []
+  await refreshRoom()
   roomStore.status = 'WAITING'
-  refreshRoom()
 }
 
 const borrowing = ref(false)
@@ -496,6 +537,7 @@ onUnmounted(() => {
             <span v-if="localCountdown > 0" class="game-countdown" :class="{ 'urgent': localCountdown <= 5 }">
               {{ localCountdown }}s
             </span>
+            <button class="game-lb-btn" @click="showLeaderboard = !showLeaderboard">🏆</button>
           </div>
         </div>
 
@@ -588,7 +630,7 @@ onUnmounted(() => {
               :class="{ 'is-me': player.playerId === userStore.playerId, 'is-disconnected': !player.connected }"
             >
               <div class="room-player-left">
-                <span class="room-player-icon">{{ player.seatIndex === 0 ? '👑' : '💺' }}</span>
+                <span class="room-player-icon">{{ player.owner ? '👑' : '💺' }}</span>
                 <span class="room-player-name">{{ player.nickname }}</span>
                 <span v-if="player.playerId === userStore.playerId" class="room-player-you">(你)</span>
               </div>
@@ -647,6 +689,14 @@ onUnmounted(() => {
         :leaderboard="roomStore.leaderboard"
         :busted-player-ids="roomStore.bustedPlayerIds"
         @back-to-lobby="handleBackToRoom"
+      />
+      <BonusAlert
+        v-if="bonusAlert"
+        :bonusType="bonusAlert.bonusType"
+        :winnerName="bonusAlert.winnerName"
+        :bonusPerPlayer="bonusAlert.bonusPerPlayer"
+        :transfers="bonusAlert.transfers"
+        @close="onBonusClose"
       />
     </div>
 
@@ -766,4 +816,11 @@ onUnmounted(() => {
 .room-leader-chips.negative { color:var(--color-accent); }
 
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.game-lb-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: clamp(12px, 3vh, 16px);
+  padding: 2px 4px; opacity: 0.7;
+  transition: opacity 0.1s;
+}
+.game-lb-btn:active { opacity: 1; transform: scale(0.9); }
 </style>

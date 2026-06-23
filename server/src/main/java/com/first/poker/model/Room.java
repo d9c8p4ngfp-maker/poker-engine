@@ -44,13 +44,22 @@ public class Room {
         if (players.stream().anyMatch(p -> p.getPlayerId().equals(player.getPlayerId()))) {
             return false;
         }
-        player.setSeatIndex(players.size());
+        java.util.Set<Integer> used = players.stream()
+            .mapToInt(Player::getSeatIndex).boxed()
+            .collect(java.util.stream.Collectors.toSet());
+        int seat = 0;
+        while (used.contains(seat)) seat++;
+        player.setSeatIndex(seat);
         players.add(player);
         return true;
     }
 
     public boolean removePlayer(String playerId) {
         return players.removeIf(p -> p.getPlayerId().equals(playerId));
+    }
+
+    public void cleanupLeftPlayers() {
+        players.removeIf(p -> p.getStatus() == PlayerStatus.LEFT);
     }
 
     public void advanceDealer() {

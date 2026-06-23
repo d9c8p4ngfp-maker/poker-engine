@@ -24,9 +24,14 @@ import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Controller
 @Validated
 public class GameMessageController {
+
+    private static final Logger log = LoggerFactory.getLogger(GameMessageController.class);
 
     private final RoomService roomService;
     private final GameSessionService gameSession;
@@ -51,12 +56,17 @@ public class GameMessageController {
 
     @MessageMapping("/game/{roomId}/start")
     public void startGame(@DestinationVariable String roomId, @Valid @Payload GameActionRequest req) {
-        System.out.println("[START-GAME] " + roomId + " requested by " + req.getPlayerId());
+        log.info("[START-GAME] {} requested by {}", roomId, req.getPlayerId());
         try {
             var room = roomService.findRoom(roomId);
             if (room == null) throw new IllegalArgumentException("Room not found: " + roomId);
 
             var state = gameSession.startGame(room, req.getPlayerId());
+
+            // Broadcast room status PLAYING so the frontend switches to game table.
+            // (Game state snapshots no longer carry the 'status' field.)
+            broadcast.sendToRoom(roomId, roomToResponse(room));
+            log.info("[START-GAME] {} broadcast room status={}", roomId, room.getStatus().name());
 
             // Register ALL room players for disconnect tracking — not just hand
             // participants. A non-participating owner who disconnects mid-game
@@ -65,13 +75,16 @@ public class GameMessageController {
                 disconnectHandler.registerPlayer(roomId, rp.getPlayerId());
             }
 
-            broadcastGameState(roomId, state);
             autoPlayBots(roomId);
-            // Schedule timeout for the first human to act
+            // Broadcast state *after* bots auto-act so the frontend doesn't
+            // flash "blinds deducted" before bots' turns render.
             var initState = gameSession.getState(roomId);
-            if (initState != null) helper.scheduleNextTimeout(roomId, initState);
+            if (initState != null) {
+                broadcastGameState(roomId, initState);
+                helper.scheduleNextTimeout(roomId, initState);
+            }
         } catch (Throwable e) {
-            System.err.println("[START-GAME-ERROR] " + roomId + ": " + e.getClass().getName() + " - " + e.getMessage());
+            log.error("[START-GAME-ERROR] {}: {} - {}", roomId, e.getClass().getName(), e.getMessage(), e);
             e.printStackTrace(System.err);
             var errorPayload = new java.util.HashMap<String, Object>();
             errorPayload.put("error", "无法开始游戏: " + e.getMessage());
@@ -88,7 +101,7 @@ public class GameMessageController {
             broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
             return;
         }
-        System.out.println("[ACTION] " + roomId + " " + req.getPlayerId() + " " + req.getAction() + " amount=" + req.getAmount());
+        log.info("[ACTION] {} {} {} amount={}", roomId, req.getPlayerId(), req.getAction(), req.getAmount());
         try {
             GameAction action;
             try {
@@ -99,6 +112,11 @@ public class GameMessageController {
                 broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
                 return;
             }
+            // Cancel any existing timeout before processing — the player acted,
+            // so their timeout is no longer needed. This also prevents a stale
+            // timeout from firing during autoPlayBots and corrupting the state.
+            timeoutScheduler.cancelTimeout(roomId);
+
             var result = gameSession.applyAction(roomId, req.getPlayerId(), action, req.getAmount());
 
             // Reset inactivity timer — any game action counts as activity
@@ -107,27 +125,30 @@ public class GameMessageController {
             if (room != null) room.setLastActivity(System.currentTimeMillis());
 
             var state = result.state();
-            System.out.println("[ACTION-RESULT] " + roomId + " curPlayer=" + state.currentPlayer().playerId() + " phase=" + state.phase() + " handComplete=" + result.handComplete());
-            broadcastGameState(roomId, state);
+            log.info("[ACTION-RESULT] {} curPlayer={} phase={} handComplete={}", roomId, state.currentPlayer().playerId(), state.phase(), result.handComplete());
 
             if (result.handComplete()) {
-                System.out.println("[HAND-COMPLETE] " + roomId + " winners=" + result.winners());
-                timeoutScheduler.cancelTimeout(roomId);
+                log.info("[HAND-COMPLETE] {} winners={}", roomId, result.winners());
                 com.first.poker.engine.GameState finalState = result.state();
                 gameSession.endGame(roomId, () -> syncRoomChips(roomId, finalState));
-                if (checkGameOver(roomId, result)) return;
+                if (room != null) checkAndApplyBonuses(roomId, room, finalState, result);
+                // Broadcast winners BEFORE checkGameOver — bustEndsGame=false
+                // with only 1 active player still deserves to show who won.
                 if (!result.winners().isEmpty()) {
                     broadcastWinners(roomId, result);
                 }
+                if (checkGameOver(roomId, result)) return;
                 return;
             }
+
+            broadcastGameState(roomId, state);
 
             autoPlayBots(roomId);
             // Schedule timeout for next human player (after bots finish)
             var currState = gameSession.getState(roomId);
             if (currState != null) helper.scheduleNextTimeout(roomId, currState);
         } catch (Throwable e) {
-            System.err.println("[processAction] " + req.getPlayerId() + " " + req.getAction() + ": " + e.getClass().getName() + " - " + e.getMessage());
+            log.error("[processAction] {} {}: {} - {}", req.getPlayerId(), req.getAction(), e.getClass().getName(), e.getMessage(), e);
             e.printStackTrace(System.err);
             System.err.flush();
             // Send error back to the player
@@ -144,7 +165,7 @@ public class GameMessageController {
     @MessageMapping("/room/{roomId}/queue-accept")
     public void handleQueueAccept(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
         String playerId = (String) body.get("playerId");
-        System.out.println("[QUEUE-ACCEPT] " + roomId + " player=" + playerId);
+        log.info("[QUEUE-ACCEPT] {} player={}", roomId, playerId);
 
         gameSession.executeWithLock(roomId, () -> {
             var room = roomService.findRoom(roomId);
@@ -180,7 +201,7 @@ public class GameMessageController {
     @MessageMapping("/room/{roomId}/leave")
     public void handleLeave(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
         String playerId = (String) body.get("playerId");
-        System.out.println("[LEAVE] " + roomId + " player=" + playerId);
+        log.info("[LEAVE] {} player={}", roomId, playerId);
 
         gameSession.executeWithLock(roomId, () -> {
             var room = roomService.findRoom(roomId);
@@ -195,7 +216,7 @@ public class GameMessageController {
                 try {
                     gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
                 } catch (Exception e) {
-                    System.out.println("[LEAVE-FOLD] " + playerId + " fold failed (may not be their turn): " + e.getMessage());
+                    log.warn("[LEAVE-FOLD] {} fold failed (may not be their turn): {}", playerId, e.getMessage());
                 }
             }
 
@@ -210,7 +231,7 @@ public class GameMessageController {
                     newOwnerId = newOwner != null ? newOwner.getPlayerId() : null;
                 } else {
                     // No human players left — dissolve room
-                    System.out.println("[DISSOLVE] " + roomId + " all humans left");
+                    log.info("[DISSOLVE] {} all humans left", roomId);
                     var dissolvePayload = new java.util.HashMap<String, Object>();
                     dissolvePayload.put("type", "room_dissolved");
                     dissolvePayload.put("roomId", roomId);
@@ -235,7 +256,7 @@ public class GameMessageController {
     @MessageMapping("/room/{roomId}/dissolve")
     public void handleDissolve(@DestinationVariable String roomId, @Payload java.util.Map<String, Object> body) {
         String playerId = (String) body.get("playerId");
-        System.out.println("[DISSOLVE] " + roomId + " requested by " + playerId);
+        log.info("[DISSOLVE] {} requested by {}", roomId, playerId);
 
         gameSession.executeWithLock(roomId, () -> {
             var room = roomService.findRoom(roomId);
@@ -304,6 +325,11 @@ public class GameMessageController {
 
     private boolean checkGameOver(String roomId, GameEngine.ActionResult result) {
         return helper.checkGameOver(roomId, result);
+    }
+
+    private void checkAndApplyBonuses(String roomId, Room room,
+            com.first.poker.engine.GameState state, GameEngine.ActionResult result) {
+        helper.checkAndApplyBonuses(roomId, room, state, result);
     }
 
     private void broadcastGameOver(String roomId, com.first.poker.model.Room room, GameEngine.ActionResult result) {

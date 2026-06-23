@@ -20,7 +20,7 @@ export interface PlayerView {
 export interface RoomSnapshot {
   roomId: string
   name: string
-  status: 'WAITING' | 'PLAYING' | 'FINISHED'
+  status?: 'WAITING' | 'PLAYING' | 'FINISHED'
   players: PlayerView[]
   communityCards: string[]
   pot: number
@@ -68,7 +68,6 @@ export const useRoomStore = defineStore('room', () => {
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {
     roomId.value = snapshot.roomId
     roomName.value = snapshot.name
-    status.value = snapshot.status
     players.value = (snapshot.players || []).map(p => ({
       playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
       chips: p.chips, betInRound: p.betInRound, folded: p.folded, allIn: p.allIn,

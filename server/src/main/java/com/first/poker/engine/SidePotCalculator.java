@@ -7,7 +7,7 @@ public class SidePotCalculator {
     public record PlayerStake(String playerId, int totalBet, boolean folded) {}
     public record PotResult(int amount, Set<String> eligiblePlayerIds, List<String> winnerIds) {}
 
-    public static List<PotResult> calculate(List<PlayerStake> stakes, Map<String, Integer> handRanks) {
+    public static List<PotResult> calculate(List<PlayerStake> stakes, Map<String, Integer> handRanks, int dealerIndex) {
         List<PotResult> pots = new ArrayList<>();
         if (stakes.isEmpty()) return pots;
 
@@ -24,7 +24,7 @@ public class SidePotCalculator {
         for (int level : levels) {
             if (level <= prev) continue;
             int layerAmount = level - prev;
-            Set<String> eligible = new HashSet<>();
+            Set<String> eligible = new LinkedHashSet<>();
             int potTotal = 0;
             int contributorCount = 0;
             String soleNonFoldedContributor = null;
@@ -33,9 +33,16 @@ public class SidePotCalculator {
                     potTotal += layerAmount;
                     contributorCount++;
                     if (!s.folded()) {
-                        eligible.add(s.playerId());
                         soleNonFoldedContributor = s.playerId();
                     }
+                }
+            }
+            // Build eligible in dealer order (clockwise from dealer's left)
+            for (int i = 1; i <= stakes.size(); i++) {
+                int idx = (dealerIndex + i) % stakes.size();
+                PlayerStake s = stakes.get(idx);
+                if (s.totalBet() >= level && !s.folded()) {
+                    eligible.add(s.playerId());
                 }
             }
             if (!eligible.isEmpty()) {

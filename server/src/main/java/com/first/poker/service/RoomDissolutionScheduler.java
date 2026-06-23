@@ -1,5 +1,7 @@
 package com.first.poker.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -7,6 +9,7 @@ import java.util.HashMap;
 
 @Service
 public class RoomDissolutionScheduler {
+    private static final Logger log = LoggerFactory.getLogger(RoomDissolutionScheduler.class);
 
     private final RoomRegistry registry;
     private final GameSessionService gameSession;
@@ -27,7 +30,7 @@ public class RoomDissolutionScheduler {
         for (var room : registry.listPublicRooms()) {
             if (room.getLastActivity() + thirtyMinutes < now) {
                 String roomId = room.getRoomId();
-                System.out.println("[DISSOLVE-INACTIVE] " + roomId + " inactive for 30+ minutes");
+                log.info("[DISSOLVE-INACTIVE] {} inactive for 30+ minutes", roomId);
                 gameSession.executeWithLock(roomId, () -> {
                     gameSession.endGameAndCleanupLock(roomId, null);
                     registry.removeRoom(roomId);

@@ -97,10 +97,10 @@ class PositionAndDealerTest {
     void headsUpDealerIsSmallBlind() {
         var players = List.of(player("A", 1000), player("B", 1000));
         var state = GameEngine.startHand(players, 0, config(10)).state();
-        // dealer=0 → SB=1 (B, becomes SB), BB=0 (A, is BB)
-        // In heads-up, dealer is SB
-        assertEquals(990, state.players().get(1).chips(), "B (dealer) should post SB");
-        assertEquals(980, state.players().get(0).chips(), "A should post BB");
+        // Heads-up: dealer is SB
+        // dealer=0 → A(index 0) is dealer/SB, B(index 1) is BB
+        assertEquals(990, state.players().get(0).chips(), "A (dealer) should post SB");
+        assertEquals(980, state.players().get(1).chips(), "B should post BB");
     }
 
     @Test @DisplayName("SB posts full amount when enough chips")

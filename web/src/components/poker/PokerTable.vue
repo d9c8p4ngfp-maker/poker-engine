@@ -62,7 +62,7 @@ const slots = computed(() => {
           <PlayingCard v-if="c" :card="c" :face-up="true" size="md" />
         </div>
       </div>
-      <div class="pot">🏆 {{ pot }}</div>
+      <div class="pot" :key="pot">🏆 {{ pot }}</div>
     </div>
   </div>
 </template>
@@ -70,8 +70,9 @@ const slots = computed(() => {
 <style scoped>
 .table {
   position: relative; margin: 0 auto; width: 100%;
-  max-width: clamp(520px, 92vw, 960px);
+  max-width: min(92vw, 960px);
   aspect-ratio: 16/9;
+  max-height: 100%;
   overflow: hidden; border-radius: 12px;
 }
 .felt {
@@ -88,7 +89,7 @@ const slots = computed(() => {
   display: flex; justify-content: center; align-items: center; gap: clamp(2px, 0.4vw, 6px);
 }
 .card-slot {
-  width: clamp(32px, 6vw, 44px); height: clamp(44px, 8.5vw, 60px);
+  width: clamp(24px, 5vw, 44px); height: clamp(34px, 7vw, 60px);
   border-radius: 4px; border: 1px dashed rgba(255, 255, 255, 0.12);
   display: flex; align-items: center; justify-content: center;
 }
@@ -104,5 +105,8 @@ const slots = computed(() => {
   0% { transform: scale(1); }
   50% { transform: scale(1.2); }
   100% { transform: scale(1); }
+}
+@media (orientation: portrait) {
+  .table { aspect-ratio: 4/3; }
 }
 </style>

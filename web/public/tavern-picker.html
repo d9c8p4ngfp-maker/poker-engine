@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>酒馆背景挑选 — Tavern Background Picker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0400;
+    color: #d8c8a0;
+    font-family: 'Press Start 2P', monospace;
+    min-height: 100vh;
+    padding: 30px 16px;
+    background-image: radial-gradient(ellipse at 50% 20%, rgba(60,20,0,0.2) 0%, transparent 60%);
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 13px;
+    color: #e0c060;
+    margin-bottom: 6px;
+    text-shadow: 0 0 12px rgba(224,192,96,0.3);
+    letter-spacing: 2px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 7px;
+    color: #6a5a38;
+    margin-bottom: 40px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: rgba(20,12,6,0.85);
+    border: 2px solid #3a2818;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .card:hover {
+    border-color: #e0c060;
+    box-shadow: 0 0 20px rgba(224,192,96,0.2);
+  }
+
+  .card.selected {
+    border-color: #60d060;
+    box-shadow: 0 0 24px rgba(96,208,96,0.35);
+  }
+
+  .card-preview {
+    width: 100%;
+    overflow: hidden;
+    background: #080400;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .card-preview.zoom {
+    cursor: zoom-in;
+  }
+
+  .card-preview img {
+    width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    transition: transform 0.3s;
+  }
+
+  .card-preview.zoomed img {
+    image-rendering: auto;
+    transform: scale(2);
+  }
+
+  .card-info {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .card-title {
+    font-size: 9px;
+    color: #e0c060;
+  }
+
+  .card-meta {
+    font-size: 6px;
+    color: #6a5a38;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .card-desc {
+    font-size: 6px;
+    color: #8a7a58;
+    line-height: 1.6;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 6px 12px;
+    border: 2px solid;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .btn-pick {
+    background: rgba(30,80,30,0.9);
+    border-color: #408040;
+    color: #a0e0a0;
+  }
+  .btn-pick:hover { box-shadow: 0 0 12px rgba(96,208,96,0.4); }
+
+  .btn-pick.picked {
+    background: rgba(40,120,40,1);
+    border-color: #60d060;
+    box-shadow: 0 0 14px rgba(96,208,96,0.5);
+  }
+
+  .btn-open {
+    background: transparent;
+    border-color: #5a4028;
+    color: #8a7a58;
+  }
+  .btn-open:hover { border-color: #e0c060; color: #e0c060; }
+
+  .btn-zoom {
+    background: transparent;
+    border-color: #3a3a60;
+    color: #8080c0;
+    font-size: 6px;
+    padding: 4px 8px;
+  }
+  .btn-zoom:hover { border-color: #6060e0; }
+
+  /* fullscreen overlay */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,0.92);
+    justify-content: center;
+    align-items: center;
+    cursor: zoom-out;
+  }
+  .overlay.show { display: flex; }
+  .overlay img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  /* selected banner */
+  .selected-banner {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 8px;
+    color: #60d060;
+    text-shadow: 0 0 10px rgba(96,208,96,0.3);
+    display: none;
+  }
+  .selected-banner.show { display: block; }
+
+  @media (max-width: 500px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PICK A TAVERN</h1>
+<p class="subtitle">选择一个酒馆背景 — 点击原图可放大查看</p>
+
+<div class="grid" id="grid"></div>
+
+<div class="selected-banner" id="banner">
+  ✅ SELECTED: <span id="selected-name"></span>
+  <br><span style="font-size:6px;color:#8a7a58;">已应用到当前牌局 UI 中</span>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeZoom()">
+  <img id="overlay-img" src="" alt="Zoom">
+</div>
+
+<script>
+const taverns = [
+  {
+    file: 'tavern-bg.png',
+    prev: 'tavern-bg-prev.jpg',
+    title: 'Monster Tavern',
+    author: 'Chasersgaming',
+    site: 'opengameart.org',
+    res: '456×752',
+    desc: '8-bit RPG风格，酒吧内部场景，墙上有怪物，中古基调。暗色温暖感。无需署名。',
+    license: 'CC0 (Public Domain)',
+    fullUrl: 'tavern-bg.png',
+  },
+  {
+    file: 'tavern-da-stealthix.png',
+    prev: 'tavern-da-stealthix-prev.jpg',
+    title: 'Medieval Tavern',
+    author: 'Stealthix',
+    site: 'deviantart.com',
+    res: '480×272',
+    desc: '经典像素酒吧内部墙画。木色温暖，较小分辨率（适合平铺或做装饰元素）。CC-BY-3.0。',
+    license: 'CC-BY 3.0',
+    fullUrl: 'tavern-da-stealthix.png',
+  },
+  {
+    file: 'tavern-isometric.png',
+    prev: 'tavern-isometric-prev.jpg',
+    title: 'Isometric Medieval Tavern',
+    author: 'Bleed',
+    site: 'opengameart.org',
+    res: '622×570',
+    desc: '等距斜45°视角酒馆。精细像素细节，桌椅吧台布局清晰。有8方向变体可用。',
+    license: 'CC-BY 4.0',
+    fullUrl: 'tavern-isometric.png',
+  },
+  {
+    file: 'tavern-buschfuss.jpg',
+    prev: 'tavern-buschfuss-prev.jpg',
+    title: '4K Adventurers Tavern',
+    author: 'Buschfuss',
+    site: 'deviantart.com',
+    res: '1920×1280',
+    desc: '最高分辨率像素酒馆。冒险者聚集的酒吧大厅，细节丰富，适合全屏背景。4K品质。',
+    license: 'DeviantArt Premium',
+    fullUrl: 'tavern-buschfuss.jpg',
+  },
+];
+
+let selected = null;
+
+function render() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = taverns.map((t, i) => `
+    <div class="card${selected === i ? ' selected' : ''}" id="card-${i}">
+      <div class="card-preview zoom" onclick="zoomIn('${t.fullUrl}')">
+        <img src="${t.prev}" alt="${t.title}" loading="lazy">
+      </div>
+      <div class="card-info">
+        <div class="card-title">${t.title}</div>
+        <div class="card-meta">
+          <span>👤 ${t.author}</span>
+          <span>📐 ${t.res}</span>
+          <span>🏷 ${t.license}</span>
+        </div>
+        <div class="card-desc">${t.desc}</div>
+        <div class="card-actions">
+          <button class="btn btn-pick${selected === i ? ' picked' : ''}" onclick="pick(${i})">
+            ${selected === i ? '✅ USING' : 'USE THIS'}
+          </button>
+          <button class="btn btn-open" onclick="openFull('${t.fullUrl}')">🔍 FULL</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function pick(i) {
+  selected = i;
+  document.getElementById('banner').classList.add('show');
+  document.getElementById('selected-name').textContent = taverns[i].title;
+  render();
+  // Notify parent or try to set the background
+  try {
+    window.opener?.postMessage({type:'tavern-selected', file: taverns[i].file}, '*');
+  } catch(e) {}
+}
+
+function zoomIn(url) {
+  document.getElementById('overlay-img').src = url;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeZoom() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function openFull(url) {
+  window.open(url, '_blank');
+}
+
+render();
+</script>
+</body>
+</html>

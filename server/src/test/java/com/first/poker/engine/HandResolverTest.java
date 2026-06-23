@@ -65,7 +65,7 @@ class HandResolverTest {
         );
 
         var hands = HandResolver.resolveHands(List.of(p1, p2), community);
-        var pots = HandResolver.distributePots(List.of(p1, p2), hands);
+        var pots = HandResolver.distributePots(List.of(p1, p2), hands, 0);
 
         assertEquals(1, pots.size());
         assertEquals(100, pots.get(0).amount());

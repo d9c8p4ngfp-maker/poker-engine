@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tavern Poker — Real Pixel Art Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --wood-dark: #5a3828;
+    --wood: #8a6040;
+    --wood-light: #b88860;
+    --gold: #e0b030;
+    --gold-dim: #a08030;
+    --cream: #f0e0c8;
+    --text: #382818;
+    --dim: #887868;
+    --panel-bg: rgba(40,20,8,0.65);
+    --panel-border: rgba(180,140,100,0.5);
+  }
+
+  body {
+    margin:0; padding:0;
+    font-family: 'Press Start 2P', monospace;
+    color: var(--cream);
+    overflow-x: hidden;
+    min-height: 100vh;
+    background: #1a0f08;
+  }
+
+  /* --- BACKGROUND IMAGE (real pixel art) --- */
+  .bg-layer {
+    position:fixed; inset:0; z-index:0;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    transition: background-image 0.6s;
+  }
+  .bg-layer::after {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%);
+  }
+
+  /* scanlines effect */
+  .scanlines {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+  }
+
+  /* vignette */
+  .vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    box-shadow: inset 0 0 120px rgba(0,0,0,0.5);
+  }
+
+  /* CONTENT OVERLAY */
+  .overlay {
+    position:relative; z-index:10;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:40px 24px;
+  }
+
+  /* TITLE */
+  .title {
+    font-size:20px; color:var(--gold);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.5), 0 0 30px rgba(224,176,48,0.35);
+    letter-spacing:4px; text-align:center; margin-bottom:6px;
+  }
+  .subtitle { font-size:7px; color:var(--gold-dim); margin-bottom:28px; text-align:center; }
+
+  /* BUTTONS */
+  .btn {
+    font-family:'Press Start 2P',monospace;
+    padding:12px 32px; border:2px solid var(--gold);
+    border-radius:6px; cursor:pointer; letter-spacing:2px; font-size:10px;
+    transition:all 0.12s;
+    background: rgba(40,20,8,0.8);
+    color: var(--gold);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+    box-shadow: 0 0 12px rgba(224,176,48,0.15);
+  }
+  .btn:hover { background:rgba(60,30,10,0.9); border-color:#ffd060; color:#ffd060; box-shadow:0 0 20px rgba(224,176,48,0.3); }
+  .btn:active { transform:scale(0.97); }
+
+  .btn-sm { font-size:8px; padding:10px 20px; }
+  .btn-xs { font-size:7px; padding:7px 14px; }
+
+  /* PANEL */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius:8px;
+    padding:24px;
+    backdrop-filter:blur(8px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    width:100%; max-width:500px;
+  }
+
+  /* FIELD */
+  .field { display:flex; align-items:center; gap:12px; padding:5px 0; }
+  .field-label { font-size:7px; color:var(--gold-dim); min-width:100px; text-align:right; }
+  .field-input {
+    font-family:'Press Start 2P',monospace; font-size:7px;
+    background:rgba(20,10,4,0.7); border:1px solid var(--panel-border);
+    color:var(--cream); padding:8px 10px; border-radius:4px; flex:1; outline:none;
+    cursor: default;
+  }
+
+  /* WAITING ROOM */
+  .waiting-area {
+    position:relative; width:300px; height:300px; margin:0 auto;
+  }
+  .waiting-ring {
+    position:absolute; inset:24px; border-radius:50%;
+    border:2px dashed rgba(224,176,48,0.25);
+  }
+  .waiting-seat {
+    position:absolute; width:52px; height:52px; border-radius:8px;
+    border:1px solid rgba(224,176,48,0.3); background:rgba(20,10,4,0.7);
+    transform:translate(-50%,-50%); backdrop-filter:blur(4px);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:6px; color:var(--gold-dim);
+  }
+  .waiting-seat.occupied { border-color:var(--gold); background:rgba(40,20,8,0.8); }
+  .waiting-center {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;
+  }
+  .waiting-center .rn { font-size:9px; color:var(--gold); text-shadow:0 0 12px rgba(224,176,48,0.2); }
+  .waiting-center .rp { font-size:6px; color:var(--gold-dim); margin-top:6px; }
+
+  /* FELT TABLE */
+  .mini-felt {
+    width:280px; height:170px; border-radius:90px;
+    background: radial-gradient(ellipse at 50% 50%, #3a7a38 0%, #1e4e1c 100%);
+    border:4px solid #4a2818;
+    box-shadow:0 0 0 6px #6a4030, 0 8px 30px rgba(0,0,0,0.4);
+    margin:0 auto; position:relative;
+  }
+  .mini-felt::after {
+    content:''; position:absolute; inset:14px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.06);
+    pointer-events:none;
+  }
+
+  /* SCREEN */
+  .screen { display:none; flex-direction:column; align-items:center; gap:20px; width:100%; }
+  .screen.active { display:flex; }
+
+  /* FOOTER */
+  .footer {
+    margin-top:auto; padding:20px 0 10px; text-align:center;
+    font-size:6px; color:var(--gold-dim);
+  }
+
+  /* IMAGE CREDIT */
+  .img-credit {
+    position:fixed; bottom:10px; right:14px; z-index:20;
+    font-size:5px; color:rgba(200,180,150,0.35);
+    font-family:'Press Start 2P',monospace;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+
+  @media (max-width:600px) {
+    .overlay { padding:30px 14px; }
+    .title { font-size:16px; }
+    .btn { font-size:8px; padding:10px 22px; }
+    .panel { padding:16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-layer" id="bgLayer" style="background-image:url('tavern-buschfuss.jpg')"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+<div class="img-credit" id="imgCredit">tavern-buschfuss.jpg</div>
+
+<div class="overlay">
+
+  <!-- SCREEN 0: HOME -->
+  <div class="screen active" id="scr0">
+    <div class="title">TAVERN<br>POKER</div>
+    <div class="subtitle">— Real Pixel Art —</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+      <button class="btn" onclick="toScreen(1)">CREATE ROOM</button>
+      <button class="btn" onclick="toScreen(1)">JOIN ROOM</button>
+    </div>
+    <div class="footer">Background: aventurers tavern (AI-gen, 1920x1280)</div>
+  </div>
+
+  <!-- SCREEN 1: CREATE ROOM -->
+  <div class="screen" id="scr1">
+    <div style="font-size:11px;color:var(--gold);margin-bottom:4px;">CREATE ROOM</div>
+    <div class="panel">
+      <div class="field"><span class="field-label">Room Name</span><input class="field-input" value="Lionheart Inn" readonly></div>
+      <div class="field"><span class="field-label">Small Blind</span><input class="field-input" value="10" readonly></div>
+      <div class="field"><span class="field-label">Big Blind</span><input class="field-input" value="20" readonly></div>
+      <div class="field"><span class="field-label">Max Players</span><input class="field-input" value="6" readonly></div>
+      <div class="field"><span class="field-label">Buy-in</span><input class="field-input" value="2000" readonly></div>
+      <div style="text-align:center;margin-top:18px;">
+        <button class="btn" onclick="toScreen(2)">CREATE TABLE</button>
+      </div>
+    </div>
+    <button class="btn btn-sm" onclick="toScreen(0)">← BACK</button>
+  </div>
+
+  <!-- SCREEN 2: WAITING ROOM -->
+  <div class="screen" id="scr2">
+    <div style="font-size:11px;color:var(--gold);margin-bottom:4px;">WAITING ROOM</div>
+    <div class="waiting-area">
+      <div class="waiting-ring"></div>
+      <div class="waiting-seat occupied" style="left:50%;top:88%;"><span style="font-size:5px;">You</span><span style="font-size:4px;color:var(--gold);margin-top:2px;">DEALER</span></div>
+      <div class="waiting-seat occupied" style="left:84%;top:60%;"><span style="font-size:5px;">Neo</span></div>
+      <div class="waiting-seat occupied" style="left:88%;top:25%;"><span style="font-size:5px;">Zed</span></div>
+      <div class="waiting-seat" style="left:50%;top:12%;"><span style="font-size:5px;">OPEN</span></div>
+      <div class="waiting-seat" style="left:12%;top:25%;"><span style="font-size:5px;">OPEN</span></div>
+      <div class="waiting-seat" style="left:16%;top:60%;"><span style="font-size:5px;">OPEN</span></div>
+      <div class="waiting-center">
+        <div class="rn">Lionheart Inn</div>
+        <div class="rp">Blinds 10/20 · 3/6 players</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-sm">START GAME</button>
+      <button class="btn btn-sm" onclick="toScreen(3)">VIEW TABLE →</button>
+    </div>
+    <button class="btn btn-sm" onclick="toScreen(0)">← HOME</button>
+  </div>
+
+  <!-- SCREEN 3: GAME TABLE -->
+  <div class="screen" id="scr3">
+    <div style="font-size:10px;color:var(--gold);">FLOP</div>
+    <div class="mini-felt">
+      <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
+        <div style="width:40px;height:56px;background:rgba(255,255,255,0.9);border-radius:3px;border:1px solid #4a2818;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:'Press Start 2P',monospace;color:#d03030;">A♥</div>
+        <div style="width:40px;height:56px;background:rgba(255,255,255,0.9);border-radius:3px;border:1px solid #4a2818;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:'Press Start 2P',monospace;">K♠</div>
+        <div style="width:40px;height:56px;background:rgba(255,255,255,0.9);border-radius:3px;border:1px solid #4a2818;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:'Press Start 2P',monospace;color:#d03030;">7♦</div>
+      </div>
+      <div style="position:absolute;top:52%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+        <span style="font-size:5px;color:rgba(255,255,255,0.4);">POT</span>
+        <div style="font-size:11px;color:var(--gold);text-shadow:0 0 10px rgba(224,176,48,0.3);">120</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+      <button class="btn btn-xs" style="border-color:#c04838;color:#f08070;">FOLD</button>
+      <button class="btn btn-xs">CHECK</button>
+      <button class="btn btn-xs">CALL 40</button>
+      <button class="btn btn-xs">RAISE</button>
+    </div>
+    <button class="btn btn-sm" onclick="toScreen(0)">← HOME</button>
+  </div>
+
+</div>
+
+<script>
+const bgLayer = document.getElementById('bgLayer');
+const imgCredit = document.getElementById('imgCredit');
+
+const backgrounds = {
+  0: { src: 'tavern-buschfuss.jpg', credit: 'Adventurers Tavern (1920×1280 AI)' },
+  1: { src: 'tavern-isometric.png', credit: 'Isometric Tavern (622×570 pixel art)' },
+  2: { src: 'tavern-da-stealthix.png', credit: 'Medieval Tavern (480×272 pixel art)' },
+  3: { src: 'tavern-bg.png', credit: 'Monster Tavern (456×752 pixel art)' }
+};
+
+function toScreen(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('scr'+n).classList.add('active');
+  // switch background
+  const bg = backgrounds[n];
+  bgLayer.style.backgroundImage = `url('${bg.src}')`;
+  imgCredit.textContent = bg.credit;
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+</script>
+</body>
+</html>

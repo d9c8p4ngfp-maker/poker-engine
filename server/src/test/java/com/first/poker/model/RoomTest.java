@@ -1,6 +1,7 @@
 package com.first.poker.model;
 
 import com.first.poker.model.enums.RoomStatus;
+import com.first.poker.model.enums.PlayerStatus;
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -131,5 +132,48 @@ class RoomTest {
         Player p = new Player("p1", "Alice", 0, 1000);
         assertTrue(room.addPlayer(p));
         assertEquals(1, room.getPlayers().size());
+    }
+
+    @Test
+    void addPlayer_shouldFillGapWhenPlayerLeft() {
+        Room room = new Room("R001", "测试", RoomConfig.withDefaults());
+        Player p1 = new Player("p1", "A", -1, 1000);
+        Player p2 = new Player("p2", "B", -1, 1000);
+        Player p3 = new Player("p3", "C", -1, 1000);
+        assertTrue(room.addPlayer(p1));
+        assertTrue(room.addPlayer(p2));
+        assertTrue(room.addPlayer(p3));
+        // Remove middle player (seat 1)
+        p2.setStatus(PlayerStatus.LEFT);
+        room.cleanupLeftPlayers();
+        // New player should fill the gap at seat 1
+        Player p4 = new Player("p4", "D", -1, 1000);
+        assertTrue(room.addPlayer(p4));
+        assertEquals(1, p4.getSeatIndex(), "should fill gap seat 1 not seat 3");
+    }
+
+    @Test
+    void cleanupLeftPlayers_shouldRemovePlayersWithLEFTStatus() {
+        Room room = new Room("R001", "测试", RoomConfig.withDefaults());
+        Player p1 = new Player("p1", "A", -1, 1000);
+        Player p2 = new Player("p2", "B", -1, 1000);
+        p2.setStatus(PlayerStatus.LEFT);
+        assertTrue(room.addPlayer(p1));
+        assertTrue(room.addPlayer(p2));
+        assertEquals(2, room.getPlayers().size());
+        room.cleanupLeftPlayers();
+        assertEquals(1, room.getPlayers().size());
+        assertEquals("p1", room.getPlayers().get(0).getPlayerId());
+    }
+
+    @Test
+    void cleanupLeftPlayers_shouldNotRemoveActivePlayers() {
+        Room room = new Room("R001", "测试", RoomConfig.withDefaults());
+        Player p1 = new Player("p1", "A", -1, 1000);
+        Player p2 = new Player("p2", "B", -1, 1000);
+        assertTrue(room.addPlayer(p1));
+        assertTrue(room.addPlayer(p2));
+        room.cleanupLeftPlayers();
+        assertEquals(2, room.getPlayers().size());
     }
 }

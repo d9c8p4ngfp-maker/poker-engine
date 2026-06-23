@@ -37,7 +37,7 @@ class PokerEngineFixtureTest {
         );
         var handRanks = Map.of("B", 100); // B has the only hand rank
 
-        var pots = SidePotCalculator.calculate(stakes, handRanks);
+        var pots = SidePotCalculator.calculate(stakes, handRanks, 0);
 
         // Total pot should be 300 (A's 100 + B's 200)
         int totalAmount = pots.stream().mapToInt(SidePotCalculator.PotResult::amount).sum();
@@ -69,7 +69,7 @@ class PokerEngineFixtureTest {
         var handRanks = Map.of("p0", 100, "p1", 80, "p2", 60, "p3", 40);
         // p4 is folded so no hand rank
 
-        var pots = SidePotCalculator.calculate(stakes, handRanks);
+        var pots = SidePotCalculator.calculate(stakes, handRanks, 0);
 
         int totalAmount = pots.stream().mapToInt(SidePotCalculator.PotResult::amount).sum();
         assertEquals(700, totalAmount,
@@ -87,7 +87,7 @@ class PokerEngineFixtureTest {
         );
         var handRanks = Map.of("p0", 100, "p1", 80, "p2", 60);
 
-        var pots = SidePotCalculator.calculate(stakes, handRanks);
+        var pots = SidePotCalculator.calculate(stakes, handRanks, 0);
 
         int totalAmount = pots.stream().mapToInt(SidePotCalculator.PotResult::amount).sum();
         // All 1200 goes to p0 (300 called + 900 uncalled returned)
@@ -109,7 +109,7 @@ class PokerEngineFixtureTest {
         var handRanks = Map.of("p0", 100, "p1", 100, "p2", 50);
         // p0 and p1 tie with rank 100; p2 has rank 50
 
-        var pots = SidePotCalculator.calculate(stakes, handRanks);
+        var pots = SidePotCalculator.calculate(stakes, handRanks, 0);
 
         int totalAmount = pots.stream().mapToInt(SidePotCalculator.PotResult::amount).sum();
         assertEquals(300, totalAmount);
@@ -297,18 +297,18 @@ class PokerEngineFixtureTest {
         var cfg = config(10, 20);
         var state = GameEngine.startHand(players, 0, cfg).state();
 
-        // Heads-up with dealer=0: pB is SB/dealer (index 1), pA is BB (index 0)
-        // Preflop: pB (SB/button) acts first
-        assertEquals("pB", state.currentPlayer().playerId());
-        // pB raises to 100 (pA has 80 left after BB 20, will be all-in if calls)
+        // Heads-up with dealer=0: pA is dealer/SB (index 0), pB is BB (index 1)
+        // Preflop: pA (SB/button) acts first
+        assertEquals("pA", state.currentPlayer().playerId());
+        // pA (SB/dealer) raises to 100 (pA has 90 left after SB 10, goes all-in)
         state = GameEngine.processAction(state, GameAction.RAISE, 100).state();
 
-        // pA (BB) now acts with chips=80, calls 80 → all-in
-        assertEquals("pA", state.currentPlayer().playerId());
+        // pB (BB) now acts with chips=980, calls 80
+        assertEquals("pB", state.currentPlayer().playerId());
         var result = GameEngine.processAction(state, GameAction.CALL, 0);
 
         var pA = result.state().players().get(0);
-        assertTrue(pA.allIn(), "Player who called with all remaining chips should be marked allIn");
+        assertTrue(pA.allIn(), "Player who raised all-in should be marked allIn");
         // After pA goes all-in, only pB remains active → round completes, hand auto-resolves
         assertTrue(result.handComplete(), "Heads-up all-in should complete the hand");
     }

@@ -3,10 +3,14 @@ package com.first.poker.controller;
 import com.first.poker.dto.CreateRoomRequest;
 import com.first.poker.dto.JoinRoomRequest;
 import com.first.poker.model.Room;
+import com.first.poker.model.RoomConfig;
+import com.first.poker.model.enums.PlayerStatus;
 import com.first.poker.service.RoomService;
 import com.first.poker.service.GameSessionService;
 import com.first.poker.service.BroadcastService;
 import com.first.poker.service.GameBroadcastHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
@@ -15,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/rooms")
 public class RoomController {
+    private static final Logger log = LoggerFactory.getLogger(RoomController.class);
 
     private final RoomService roomService;
     private final GameSessionService gameSessionService;
@@ -132,11 +137,17 @@ public class RoomController {
                 .filter(p -> p.getPlayerId().equals(playerId))
                 .findFirst().orElse(null);
             if (player == null) return;
+            if (room.getConfig().getBuyInRule() == RoomConfig.BuyInRule.ONCE_ONLY
+                && player.getBorrowCount() > 0
+                && player.getChips() > 0) {
+                log.info("[BORROW] {} {} blocked — ONCE_ONLY and already borrowed (borrowCount={} chips={})",
+                    roomId, playerId, player.getBorrowCount(), player.getChips());
+                return;
+            }
             player.borrow(borrowAmount[0]);
+            player.setStatus(PlayerStatus.ACTIVE);
             room.setLastActivity(System.currentTimeMillis());
-            System.out.println("[BORROW] " + roomId + " " + playerId
-                + " borrowed #" + player.getBorrowCount()
-                + " amount=" + borrowAmount[0] + ", chips=" + player.getChips());
+            log.info("[BORROW] {} {} borrowed #{} amount={}, chips={}", roomId, playerId, player.getBorrowCount(), borrowAmount[0], player.getChips());
         });
 
         // Broadcast outside lock (broadcast is thread-safe)

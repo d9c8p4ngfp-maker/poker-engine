@@ -101,8 +101,8 @@ function getMedal(index: number) {
 .lb-row {
   display: flex; align-items: center; gap: 12px;
   padding: 8px 12px; border-radius: 10px;
-  background: var(--color-surface);
-  border: 1px solid transparent;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
   margin-bottom: 4px;
 }
 .lb-row.first {

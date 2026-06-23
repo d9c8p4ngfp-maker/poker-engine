@@ -9,6 +9,8 @@ import com.first.poker.model.enums.PlayerStatus;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.annotation.PreDestroy;
 
@@ -23,6 +25,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class GameDisconnectHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GameDisconnectHandler.class);
 
     private final Map<String, String> playerRooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToPlayer = new ConcurrentHashMap<>();
@@ -47,7 +51,7 @@ public class GameDisconnectHandler {
     @PreDestroy
     public void shutdown() {
         graceExecutor.shutdown();
-        System.out.println("[DISCONNECT] Grace executor shut down");
+        log.info("[DISCONNECT] Grace executor shut down");
     }
 
     public void registerPlayer(String roomId, String playerId) {
@@ -66,7 +70,7 @@ public class GameDisconnectHandler {
         ScheduledFuture<?> timer = graceTimers.remove(playerId);
         if (timer != null) {
             timer.cancel(false);
-            System.out.println("[GRACE-CANCEL] " + playerId + " grace timer cancelled (player left)");
+            log.info("[GRACE-CANCEL] {} grace timer cancelled (player left)", playerId);
         }
     }
 
@@ -82,7 +86,7 @@ public class GameDisconnectHandler {
         String roomId = playerRooms.get(playerId);
         if (roomId == null) return;
 
-        System.out.println("[DISCONNECT] session=" + sessionId + " player=" + playerId + " room=" + roomId);
+        log.info("[DISCONNECT] session={} player={} room={}", sessionId, playerId, roomId);
 
         // Capture final copies for lambdas
         final String fPlayerId = playerId;
@@ -120,7 +124,7 @@ public class GameDisconnectHandler {
                         foldResult.set(result);
                     }
                 } catch (Exception e) {
-                    System.out.println("[DISCONNECT-FOLD] " + fPlayerId + " fold failed: " + e.getMessage());
+                    log.warn("[DISCONNECT-FOLD] {} fold failed: {}", fPlayerId, e.getMessage());
                 }
             }
         });
@@ -137,7 +141,7 @@ public class GameDisconnectHandler {
             broadcastHelper.broadcastGameState(fRoomId, fr.state());
 
             if (fr.handComplete()) {
-                System.out.println("[DISCONNECT-HAND-COMPLETE] " + fRoomId + " triggered by " + fPlayerId + " disconnect-fold");
+                log.info("[DISCONNECT-HAND-COMPLETE] {} triggered by {} disconnect-fold", fRoomId, fPlayerId);
                 gameSession.endGame(fRoomId, () -> {
                     var finalRoom = roomService.findRoom(fRoomId);
                     if (finalRoom != null) broadcastHelper.syncRoomChips(fRoomId, fr.state());
@@ -170,11 +174,11 @@ public class GameDisconnectHandler {
                         .ifPresent(p -> {
                             p.setStatus(PlayerStatus.LEFT);
                             graceTimers.remove(fPlayerId);
-                            System.out.println("[DISCONNECT-EXPIRE] " + fPlayerId + " marked LEFT in " + fRoomId);
+                            log.info("[DISCONNECT-EXPIRE] {} marked LEFT in {}", fPlayerId, fRoomId);
                         });
                     broadcast.sendToRoom(fRoomId, "room", roomToUpdatedResponse(r));
                 } catch (Exception e) {
-                    System.err.println("[DISCONNECT-EXPIRE-ERROR] " + fPlayerId + ": " + e.getMessage());
+                    log.error("[DISCONNECT-EXPIRE-ERROR] {}: {}", fPlayerId, e.getMessage(), e);
                 }
             });
         }, 300, TimeUnit.SECONDS);

@@ -12,7 +12,6 @@ public class GameStateSnapshot {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("phase", phaseString(state.phase()));
         map.put("bettingRound", phaseString(state.phase()));
-        map.put("status", state.phase() == GamePhase.SHOWDOWN ? "FINISHED" : "PLAYING");
         map.put("communityCards", state.communityCards().stream().map(Card::toString).toList());
         map.put("pot", state.pot());
         map.put("currentBet", state.currentBet());

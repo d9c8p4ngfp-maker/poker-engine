@@ -15,4 +15,9 @@ public class CreateRoomRequest {
     private Integer smallBlind;
     private Integer actionTimeoutSec;
     private Boolean bustEndsGame;
+    private Boolean bonus27Enabled;
+    private Integer bonus27Amount;
+    private Boolean bonusStraightFlushEnabled;
+    private Integer bonusStraightFlushAmount;
+    private Boolean bonusRoyalFlushDouble;
 }

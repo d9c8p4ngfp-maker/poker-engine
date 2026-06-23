@@ -64,15 +64,15 @@ const p = defineProps<{
 .cards { display: flex; gap: 1px; }
 .nick {
   font-family: 'Press Start 2P', monospace;
-  font-size: clamp(7px, 1.8vh, 10px);
+  font-size: clamp(6px, 1.6vh, 10px);
   color: var(--color-text-light);
-  font-weight: bold; max-width: 84px; overflow: hidden;
+  font-weight: bold; max-width: clamp(48px, 10vw, 84px); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
 .nick.me { color: var(--color-gold); }
 .chips {
   font-family: 'Press Start 2P', monospace;
-  font-size: clamp(7px, 1.8vh, 10px);
+  font-size: clamp(6px, 1.6vh, 10px);
   color: var(--color-gold);
 }
 .bet {

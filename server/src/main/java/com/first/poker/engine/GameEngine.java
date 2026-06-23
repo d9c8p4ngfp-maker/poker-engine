@@ -88,7 +88,7 @@ public class GameEngine {
             if (newState.phase() == GamePhase.SHOWDOWN) {
                 try {
                 var hands = HandResolver.resolveHands(newState.players(), newState.communityCards());
-                var pots = HandResolver.distributePots(newState.players(), hands);
+                var pots = HandResolver.distributePots(newState.players(), hands, newState.dealerIndex());
 
                 List<WinnerInfo> winners = new ArrayList<>();
                 Map<String, Integer> chipIncreases = new HashMap<>();

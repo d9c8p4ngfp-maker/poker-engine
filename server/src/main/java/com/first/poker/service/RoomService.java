@@ -5,13 +5,18 @@ import com.first.poker.dto.JoinRoomRequest;
 import com.first.poker.model.Player;
 import com.first.poker.model.Room;
 import com.first.poker.model.RoomConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class RoomService {
+    private static final Logger log = LoggerFactory.getLogger(RoomService.class);
+
     private final RoomRegistry registry;
     private final GameSessionService gameSessionService;
     private final GameDisconnectHandler disconnectHandler;
@@ -48,10 +53,15 @@ public class RoomService {
         Room room = registry.findById(roomId);
         if (room == null) return null;
 
+        // ── Auto-generate playerId if not provided ──
+        if (req.getPlayerId() == null || req.getPlayerId().isBlank()) {
+            req.setPlayerId(UUID.randomUUID().toString());
+        }
+
         // ── Password check ──
         if (room.getPassword() != null && !room.getPassword().isEmpty()
                 && !room.getPassword().equals(req.getPassword())) {
-            System.out.println("[WARN] " + req.getPlayerId() + " wrong password for room " + roomId);
+            log.warn("[WARN] {} wrong password for room {}", req.getPlayerId(), roomId);
             return null;
         }
 
@@ -63,7 +73,7 @@ public class RoomService {
             disconnectHandler.onReconnect(req.getPlayerId());
             disconnectHandler.registerPlayer(roomId, req.getPlayerId());
             room.setLastActivity(System.currentTimeMillis());
-            System.out.println("[RECONNECT] " + req.getPlayerId() + " rejoined room " + roomId);
+            log.info("[RECONNECT] {} rejoined room {}", req.getPlayerId(), roomId);
             return room;
         }
 
@@ -174,5 +184,10 @@ public class RoomService {
         if (req.getSmallBlind() != null) config.setSmallBlind(req.getSmallBlind());
         if (req.getActionTimeoutSec() != null) config.setActionTimeoutSec(req.getActionTimeoutSec());
         if (req.getBustEndsGame() != null) config.setBustEndsGame(req.getBustEndsGame());
+        if (req.getBonus27Enabled() != null) config.setBonus27Enabled(req.getBonus27Enabled());
+        if (req.getBonus27Amount() != null) config.setBonus27Amount(req.getBonus27Amount());
+        if (req.getBonusStraightFlushEnabled() != null) config.setBonusStraightFlushEnabled(req.getBonusStraightFlushEnabled());
+        if (req.getBonusStraightFlushAmount() != null) config.setBonusStraightFlushAmount(req.getBonusStraightFlushAmount());
+        if (req.getBonusRoyalFlushDouble() != null) config.setBonusRoyalFlushDouble(req.getBonusRoyalFlushDouble());
     }
 }

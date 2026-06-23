@@ -112,7 +112,7 @@ const sizeClass = computed(() => props.size)
 .card-back {
   width: 100%;
   height: 100%;
-  background: #8b2020;
+  background: var(--color-card-back);
   border: 1.5px solid #a83030;
   border-radius: 4px;
   box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.4);

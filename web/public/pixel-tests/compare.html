@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Art Comparison</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #ccc;
+    font-family: 'Press Start 2P', monospace;
+    min-height: 100vh;
+    padding: 30px 20px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 14px;
+    color: #c8a860;
+    margin-bottom: 8px;
+    text-shadow: 2px 2px 0 #000;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 7px;
+    color: #665a40;
+    margin-bottom: 40px;
+  }
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .variant {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .variant img {
+    width: 200px;
+    height: 280px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border: 2px solid #332010;
+    border-radius: 4px;
+    background: #111;
+  }
+  .variant img:hover {
+    border-color: #c8a860;
+    transform: scale(1.08);
+    transition: 0.15s;
+  }
+  .label {
+    font-size: 8px;
+    color: #c8a860;
+  }
+  .best-hint {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 8px;
+    color: #886a30;
+    line-height: 2;
+  }
+</style>
+</head>
+<body>
+<h1>PIXEL ART CONVERSION TEST</h1>
+<p class="subtitle">Same image · different pixel grid sizes</p>
+<div class="grid">
+  <div class="variant">
+    <img src="original_cropped.png" alt="original">
+    <span class="label">Original</span>
+  </div>
+  <div class="variant">
+  <img src="pixel_16x22.png" alt="16x22">
+  <span class="label">16×22 pixels</span>
+</div><div class="variant">
+  <img src="pixel_24x33.png" alt="24x33">
+  <span class="label">24×33 pixels</span>
+</div><div class="variant">
+  <img src="pixel_32x44.png" alt="32x44">
+  <span class="label">32×44 pixels</span>
+</div><div class="variant">
+  <img src="pixel_48x67.png" alt="48x67">
+  <span class="label">48×67 pixels</span>
+</div><div class="variant">
+  <img src="pixel_64x89.png" alt="64x89">
+  <span class="label">64×89 pixels</span>
+</div>
+</div>
+<p class="best-hint">
+  Smaller number = chunkier pixels (more retro)<br>
+  Larger number = more detail preserved<br>
+  All cards rendered at same size (250×350)
+</p>
+</body>
+</html>

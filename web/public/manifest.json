@@ -1,0 +1,12 @@
+{
+  "name": "酒馆扑克 - Tavern Poker",
+  "short_name": "酒馆扑克",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1e1006",
+  "theme_color": "#1e1006",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pixel Art Poker Cards — Vircon32 Retro Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --text: #e8e0c8;
+    --accent: #c8a860;
+    --card-w: 68px;
+    --card-h: 94px;
+    --scale: 3;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a0f0a;
+    background-image:
+      radial-gradient(ellipse at center, rgba(60,30,10,0.3) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 2px, transparent 2px, transparent 4px);
+    color: var(--text);
+    font-family: 'Press Start 2P', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 30px 20px 10px;
+  }
+
+  header h1 {
+    font-size: 14px;
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(200,168,96,0.5), 2px 2px 0 #000;
+    letter-spacing: 2px;
+    line-height: 1.8;
+  }
+
+  header p {
+    font-size: 8px;
+    color: #887a60;
+    margin-top: 8px;
+  }
+
+  /* ---- suit sections ---- */
+  .suit-section {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 0 16px;
+  }
+
+  .suit-title {
+    font-size: 10px;
+    color: var(--accent);
+    margin: 20px 0 10px 4px;
+    text-shadow: 1px 1px 0 #000;
+    letter-spacing: 1px;
+  }
+
+  .card-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  /* ---- individual card ---- */
+  .card-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card {
+    width: calc(var(--card-w) * var(--scale));
+    height: calc(var(--card-h) * var(--scale));
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background-image: url('pixel-cards-fronts.png');
+    background-size: calc(926px * var(--scale)) calc(391px * var(--scale));
+    border-radius: 4px;
+    box-shadow:
+      0 0 0 2px #332010,
+      0 4px 12px rgba(0,0,0,0.6),
+      inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  .card:hover {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 4px 20px rgba(200,168,96,0.4),
+      inset 0 0 0 1px rgba(255,255,255,0.1);
+    transform: translateY(-4px);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  .card-label {
+    font-size: 7px;
+    color: #665a40;
+    text-align: center;
+  }
+
+  /* ---- card back showcase ---- */
+  .card-back-section {
+    max-width: 1100px;
+    margin: 30px auto;
+    padding: 0 16px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .card-back-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-back {
+    width: calc(var(--card-w) * var(--scale));
+    height: calc(var(--card-h) * var(--scale));
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background-image: url('pixel-cards-back.png');
+    background-size: calc(228px * var(--scale)) calc(201px * var(--scale));
+    border-radius: 4px;
+    box-shadow:
+      0 0 0 2px #332010,
+      0 4px 12px rgba(0,0,0,0.6);
+  }
+
+  /* ---- table scene demo ---- */
+  .demo-table {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 16px;
+  }
+
+  .mini-felt {
+    background: radial-gradient(ellipse at center, #2d5a27 0%, #1a3a15 60%, #0d1a0a 100%);
+    border-radius: 200px;
+    border: 6px solid #4a3020;
+    padding: 40px 30px;
+    position: relative;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow:
+      0 0 0 4px #1a0f08,
+      0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  .mini-felt .card.on-table {
+    width: calc(var(--card-w) * 2.5);
+    height: calc(var(--card-h) * 2.5);
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background-image: url('pixel-cards-fronts.png');
+    background-size: calc(926px * 2.5) calc(391px * 2.5);
+    border-radius: 3px;
+    box-shadow:
+      0 0 0 2px #222,
+      0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  /* ---- footer ---- */
+  footer {
+    text-align: center;
+    padding: 30px 20px;
+    font-size: 7px;
+    color: #443a28;
+    line-height: 2;
+  }
+
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  /* ---- reactive scale ---- */
+  @media (max-width: 768px) {
+    :root { --scale: 2.2; }
+    .card-grid { gap: 5px; }
+    .suit-title { font-size: 8px; }
+    .card-label { font-size: 6px; }
+    .mini-felt .card.on-table {
+      width: calc(var(--card-w) * 1.8);
+      height: calc(var(--card-h) * 1.8);
+      background-size: calc(926px * 1.8) calc(391px * 1.8);
+    }
+  }
+
+  @media (max-width: 480px) {
+    :root { --scale: 1.8; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PIXEL ART PLAYING CARDS</h1>
+  <p>Vircon32 Retro Deck · CC-BY 4.0 · 68×94px per card · 52 standard cards</p>
+</header>
+
+<!-- Full deck displayed by suit -->
+<div id="all-cards"></div>
+
+<!-- Card back + extras from sprite sheet -->
+<div class="card-back-section">
+  <div class="card-back-wrap">
+    <div class="card-back" style="background-position: left 0px top 0px;"></div>
+    <span style="font-size:7px;color:#665a40">Card Back</span>
+  </div>
+</div>
+
+<!-- Mini table scene -->
+<div class="demo-table">
+  <div class="suit-title" style="text-align:center;">MINI TABLE — FLOP</div>
+  <div class="mini-felt" id="mini-felt">
+  </div>
+</div>
+
+<footer>
+  Pixel art deck by <a href="https://opengameart.org/content/pixel-art-poker-cards" target="_blank">Vircon32 (Carra)</a>
+  · License: CC-BY 4.0 · OpenGameArt.org<br>
+  This is a demo — cards rendered from sprite sheet with CSS image-rendering: pixelated
+</footer>
+
+<script>
+// Card sprite sheet layout (Vircon32, 926×391):
+// 13 columns × 4 rows, 3px margin & 3px gap
+// Card at (col, row): x = 3 + col*71, y = 3 + row*97, size 68×94
+
+const CARD_W = 68, CARD_H = 94;
+const MARGIN = 3, GAP = 3;
+const COL_STEP = CARD_W + GAP;  // 71
+const ROW_STEP = CARD_H + GAP;  // 97
+
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const SUITS = [
+  { name: 'Spades', symbol: '♠', row: 0, color: '#c0c0c0' },
+  { name: 'Hearts', symbol: '♥', row: 1, color: '#e04040' },
+  { name: 'Clubs', symbol: '♣', row: 2, color: '#c0c0c0' },
+  { name: 'Diamonds', symbol: '♦', row: 3, color: '#e04040' },
+];
+
+function cardStyle(row, col, scaleVar) {
+  const x = -(MARGIN + col * COL_STEP);
+  const y = -(MARGIN + row * ROW_STEP);
+  return `background-position: left ${x * scaleVar}px top ${y * scaleVar}px;`;
+}
+
+function buildAllCards() {
+  const container = document.getElementById('all-cards');
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--scale').trim());
+
+  SUITS.forEach(suit => {
+    const section = document.createElement('div');
+    section.className = 'suit-section';
+    section.innerHTML = `<div class="suit-title" style="color:${suit.color}">${suit.symbol} ${suit.name}</div>`;
+
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+
+    RANKS.forEach((rank, col) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'card-container';
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.setAttribute('style', cardStyle(suit.row, col, scale));
+
+      const label = document.createElement('div');
+      label.className = 'card-label';
+      label.textContent = `${rank}${suit.symbol}`;
+
+      wrap.appendChild(card);
+      wrap.appendChild(label);
+      grid.appendChild(wrap);
+    });
+
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+}
+
+function buildMiniTable() {
+  const felt = document.getElementById('mini-felt');
+  const scale = 2.5; // matches CSS var for on-table cards
+
+  // Show a flop: Ah(0,3), Ks(0,12), 7d(12,3)
+  const flopCards = [
+    { row: 3, col: 0, label: 'A♦' },   // Ad
+    { row: 0, col: 12, label: 'K♠' },  // Ks
+    { row: 3, col: 5, label: '7♦' },   // 7d
+  ];
+
+  flopCards.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'card on-table';
+    const x = -(MARGIN + c.col * COL_STEP);
+    const y = -(MARGIN + c.row * ROW_STEP);
+    card.setAttribute('style', `background-position: left ${x * scale}px top ${y * scale}px;`);
+    felt.appendChild(card);
+  });
+}
+
+buildAllCards();
+buildMiniTable();
+</script>
+
+</body>
+</html>

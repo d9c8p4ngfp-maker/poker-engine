@@ -36,7 +36,7 @@ class ProductionRegressionTest {
             new SidePotCalculator.PlayerStake("B", 200, false)
         );
         var handRanks = java.util.Map.of("B", 100);
-        var pots = SidePotCalculator.calculate(stakes, handRanks);
+        var pots = SidePotCalculator.calculate(stakes, handRanks, 0);
         int total = pots.stream().mapToInt(SidePotCalculator.PotResult::amount).sum();
         assertEquals(300, total, "Folded A's 100 must be in total pot");
     }

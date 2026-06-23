@@ -12,6 +12,9 @@ const name = ref(userStore.nickname + '的牌局')
 const maxSeats = ref(8); const minPlayers = ref(2); const smallBlind = ref(10)
 const initialChips = ref(1000); const actionTimeout = ref(30)
 const bustEndsGame = ref(true); const password = ref(''); const showPassword = ref(false)
+const bonus27Enabled = ref(false); const bonus27Amount = ref(0)
+const bonusSFEnabled = ref(false); const bonusSFAmount = ref(0)
+const bonusRoyalFlushDouble = ref(true)
 const errorMsg = ref(''); const creating = ref(false)
 
 onMounted(() => {
@@ -30,6 +33,9 @@ async function handleCreate() {
         maxSeats: maxSeats.value, minPlayers: minPlayers.value,
         smallBlind: smallBlind.value, initialChips: initialChips.value,
         actionTimeoutSec: actionTimeout.value, bustEndsGame: bustEndsGame.value,
+        bonus27Enabled: bonus27Enabled.value, bonus27Amount: bonus27Amount.value,
+        bonusStraightFlushEnabled: bonusSFEnabled.value, bonusStraightFlushAmount: bonusSFAmount.value,
+        bonusRoyalFlushDouble: bonusRoyalFlushDouble.value,
       }),
     })
     if (!res.ok) { const e = await res.json().catch(() => ({ message: res.statusText })); throw new Error(e.message || `创建失败 (${res.status})`) }
@@ -57,6 +63,19 @@ async function handleCreate() {
         <StepperControl v-model="actionTimeout" :min="10" :max="120" :step="5" label="超时(秒)" />
       </div>
       <label class="check"><input v-model="bustEndsGame" type="checkbox" /> 淘汰出局：有人输光则比赛结束</label>
+      <div class="bonus-section">
+        <div class="bonus-title">🎲 彩蛋规则</div>
+        <div class="bonus-row">
+          <label class="check" style="margin-bottom:4px"><input v-model="bonus27Enabled" type="checkbox" /> 2-7 Game</label>
+          <div class="bonus-desc">拿 2-7 起手牌赢得底池，每人奖励彩金</div>
+          <StepperControl v-if="bonus27Enabled" v-model="bonus27Amount" :min="0" :max="500" :step="10" label="彩金 (0=自动)" />
+        </div>
+        <div class="bonus-row">
+          <label class="check" style="margin-bottom:4px"><input v-model="bonusSFEnabled" type="checkbox" /> 同花顺彩金</label>
+          <div class="bonus-desc">同花顺赢得底池，每人奖励彩金（皇家翻倍）</div>
+          <StepperControl v-if="bonusSFEnabled" v-model="bonusSFAmount" :min="0" :max="1000" :step="50" label="彩金 (0=自动)" />
+        </div>
+      </div>
       <div class="pw-section">
         <label class="check"><input v-model="showPassword" type="checkbox" /> 设置房间密码</label>
         <input v-if="showPassword" v-model="password" type="password" placeholder="房间密码..." class="field-input" />
@@ -97,4 +116,21 @@ async function handleCreate() {
   background:var(--color-primary); color:var(--color-text); border:3px solid var(--color-button-shadow);
   border-radius:8px; box-shadow:var(--shadow-button); cursor:pointer; transition:all 0.12s; letter-spacing:1px; }
 .btn-submit:active:not(:disabled) { transform:scale(0.97); }
+.bonus-section { margin-top: 8px; }
+.bonus-title {
+  font-size: clamp(12px, 3vh, 15px); color: var(--color-gold);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.bonus-row {
+  background: var(--color-input-bg); border: 1px solid var(--color-border);
+  border-radius: 8px; padding: 10px; margin-bottom: 8px;
+}
+.bonus-row .check {
+  font-size: clamp(11px, 2.6vh, 14px);
+}
+.bonus-desc {
+  font-size: clamp(9px, 2vh, 12px); color: var(--color-text-muted);
+  margin: 4px 0 8px;
+}
 </style>

@@ -7,9 +7,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class GameSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(GameSessionService.class);
 
     private final ConcurrentHashMap<String, GameState> sessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> roomLocks = new ConcurrentHashMap<>();
@@ -37,6 +41,7 @@ public class GameSessionService {
         ReentrantLock lock = roomLocks.computeIfAbsent(roomId, k -> new ReentrantLock());
         lock.lock();
         try {
+            room.cleanupLeftPlayers();
             // Only owner can start
             if (room.getOwner() == null || !room.getOwner().getPlayerId().equals(requesterId)) {
                 throw new IllegalArgumentException("Only room owner can start the game");
@@ -127,6 +132,7 @@ public class GameSessionService {
                     beforeUnlock.run();
                 }
                 sessions.remove(roomId);
+                log.info("[END-GAME] {} session removed, remaining sessions: {}", roomId, sessions.size());
             } finally {
                 lock.unlock();
             }
@@ -135,6 +141,7 @@ public class GameSessionService {
                 beforeUnlock.run();
             }
             sessions.remove(roomId);
+            log.info("[END-GAME] {} session removed (no lock), remaining: {}", roomId, sessions.size());
         }
     }
 

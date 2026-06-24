@@ -75,7 +75,7 @@ describe('PokerTable', () => {
     expect(wrapper.text()).toContain('D')
   })
 
-  it('highlights current player', () => {
+  it('highlights current player by currentPlayerId', () => {
     const players = [mockPlayer('A', 0), mockPlayer('B', 1)]
     const wrapper = mount(PokerTable, {
       props: {
@@ -83,11 +83,29 @@ describe('PokerTable', () => {
         communityCards: [],
         pot: 0,
         dealerPlayerId: null,
-        currentPlayerIndex: 1,
+        currentPlayerIndex: 0,
+        currentPlayerId: 'B',
         myPlayerId: 'A',
       },
     })
     const seats = wrapper.findAll('[data-test="seat"]')
     expect(seats[1].classes()).toContain('cur')
+  })
+
+  it('supports up to 8 players in layout', () => {
+    const players = Array.from({ length: 8 }, (_, i) => mockPlayer(`P${i}`, i))
+    const wrapper = mount(PokerTable, {
+      props: {
+        players,
+        communityCards: [],
+        pot: 0,
+        dealerPlayerId: null,
+        currentPlayerIndex: 0,
+        currentPlayerId: 'P0',
+        myPlayerId: 'P3',
+      },
+    })
+    const seats = wrapper.findAll('[data-test="seat"]')
+    expect(seats.length).toBe(8)
   })
 })

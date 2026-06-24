@@ -11,7 +11,7 @@ interface SeatPlayer {
 
 const props = defineProps<{
   players:SeatPlayer[]; communityCards:string[]; pot:number
-  dealerPlayerId:string|null; currentPlayerIndex:number; myPlayerId:string; showdown?:boolean
+  dealerPlayerId:string|null; currentPlayerIndex:number; currentPlayerId:string|null; myPlayerId:string; showdown?:boolean
 }>()
 
 const ALL_SEATS:{x:number;y:number}[] = [
@@ -53,7 +53,7 @@ const slots = computed(() => {
     <div v-for="p in sorted" :key="p.playerId" class="seat-wrap"
       :style="{ left: p.pos.x + '%', top: p.pos.y + '%', transform: 'translate(-50%,-50%)' }">
       <PlayerSeat v-bind="p" :is-dealer="p.playerId === dealerPlayerId"
-        :is-current-player="p.playerId === (props.players[props.currentPlayerIndex]?.playerId)"
+        :is-current-player="p.playerId === props.currentPlayerId"
         :is-me="p.playerId === myPlayerId" :showdown="showdown" />
     </div>
     <div class="center">

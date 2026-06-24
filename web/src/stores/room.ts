@@ -66,8 +66,8 @@ export const useRoomStore = defineStore('room', () => {
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
 
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {
-    roomId.value = snapshot.roomId
-    roomName.value = snapshot.name
+    if (snapshot.roomId != null) roomId.value = snapshot.roomId
+    if (snapshot.name != null) roomName.value = snapshot.name
     players.value = (snapshot.players || []).map(p => ({
       playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
       chips: p.chips, betInRound: p.betInRound, folded: p.folded, allIn: p.allIn,

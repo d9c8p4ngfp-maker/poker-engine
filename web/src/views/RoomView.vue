@@ -39,42 +39,7 @@ onMounted(() => {
   }
 })
 
-const joinError = ref('')
-const joined = ref(false)
-const joining = ref(false)
-const addingBot = ref(false)
-const localCountdown = ref(0)
-const showBustChoice = ref(false)
-const showLeaderboard = ref(false)
-const bonusAlert = ref<{
-  bonusType: '27_GAME' | 'STRAIGHT_FLUSH' | 'ROYAL_FLUSH'
-  winnerName: string
-  bonusPerPlayer: number
-  transfers: Record<string, number>
-} | null>(null)
-const bonusQueue: Array<typeof bonusAlert.value> = []
-let countdownTimer: ReturnType<typeof setInterval> | null = null
-
-onMounted(async () => {
-  logger.logLifecycle('mounted')
-  joining.value = true
-
-  if (!userStore.nickname) {
-    userStore.currentRoomId = localStorage.getItem('poker_room_id') || ''
-    const savedNick = localStorage.getItem('poker_nickname')
-    if (savedNick) userStore.nickname = savedNick
-    if (!userStore.nickname) {
-      joinError.value = '未找到玩家信息，请从首页重新进入'
-      joining.value = false
-      return
-    }
-  }
-
-  try { await connect() } catch (e) {
-    logger.logError('ws_connect_failed', e)
-    joinError.value = 'WebSocket 连接失败'; joining.value = false; return
-  }
-
+function subscribeAll() {
   subscribe(`/topic/room/${roomId}`, (msg) => {
     const data = JSON.parse(msg.body)
     console.log('[RoomView] room msg:', JSON.stringify(data).slice(0, 200))
@@ -197,6 +162,45 @@ onMounted(async () => {
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
   })
+}
+
+const joinError = ref('')
+const joined = ref(false)
+const joining = ref(false)
+const addingBot = ref(false)
+const localCountdown = ref(0)
+const showBustChoice = ref(false)
+const showLeaderboard = ref(false)
+const bonusAlert = ref<{
+  bonusType: '27_GAME' | 'STRAIGHT_FLUSH' | 'ROYAL_FLUSH'
+  winnerName: string
+  bonusPerPlayer: number
+  transfers: Record<string, number>
+} | null>(null)
+const bonusQueue: Array<typeof bonusAlert.value> = []
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(async () => {
+  logger.logLifecycle('mounted')
+  joining.value = true
+
+  if (!userStore.nickname) {
+    userStore.currentRoomId = localStorage.getItem('poker_room_id') || ''
+    const savedNick = localStorage.getItem('poker_nickname')
+    if (savedNick) userStore.nickname = savedNick
+    if (!userStore.nickname) {
+      joinError.value = '未找到玩家信息，请从首页重新进入'
+      joining.value = false
+      return
+    }
+  }
+
+  try { await connect() } catch (e) {
+    logger.logError('ws_connect_failed', e)
+    joinError.value = 'WebSocket 连接失败'; joining.value = false; return
+  }
+
+  subscribeAll()
 
   await refreshRoom()
   if (roomStore.roomId) {
@@ -228,7 +232,8 @@ let wasConnected = false
 watch(connected, async (now) => {
   if (now && !wasConnected && joined.value) {
     logger.logLifecycle('ws_reconnect');
-    console.log('[RoomView] WebSocket reconnected, re-joining room')
+    console.log('[RoomView] WebSocket reconnected, re-subscribing and re-joining room')
+    subscribeAll()
     try {
       await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
@@ -282,6 +287,7 @@ const isOwner = computed(() => {
 const isSpectating = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
   const me = myPlayer.value
+  if (!me) return true // player not in players list = queued/spectating
   return !!(me && (me as any).inGame === false)
 })
 
@@ -333,10 +339,11 @@ const legalActions = computed(() => {
   }
   const myBet = myPlayer.value.betInRound
   const toCall = roomStore.currentBet - myBet
+  const effectiveMinRaise = roomStore.minRaise || roomStore.bigBlind
   return {
     canCheck: toCall <= 0,
     canCall: toCall > 0,
-    canBet: roomStore.currentBet === 0 && myPlayer.value.chips >= Math.min(roomStore.minRaise, myPlayer.value.chips),
+    canBet: roomStore.currentBet === 0 && myPlayer.value.chips >= Math.min(effectiveMinRaise, myPlayer.value.chips),
     canRaise: roomStore.currentBet > 0 && myPlayer.value.chips > toCall && myPlayer.value.chips > 0,
     callAmount: Math.min(toCall, myPlayer.value.chips),
   }
@@ -344,7 +351,7 @@ const legalActions = computed(() => {
 
 function startCountdown() {
   stopCountdown()
-  localCountdown.value = 30
+  localCountdown.value = 28 // 预留2秒网络缓冲，避免前端倒计时还没归零后端已超时
   countdownTimer = setInterval(() => {
     localCountdown.value--
     if (localCountdown.value <= 0) {
@@ -549,6 +556,7 @@ onUnmounted(() => {
             :pot="roomStore.pot"
             :dealer-player-id="roomStore.dealerPlayerId"
             :current-player-index="roomStore.currentPlayerIndex"
+            :current-player-id="roomStore.currentPlayerId"
             :my-player-id="userStore.playerId"
             :showdown="roomStore.status === 'FINISHED'"
           />
@@ -573,7 +581,7 @@ onUnmounted(() => {
             :can-bet="legalActions.canBet"
             :can-raise="legalActions.canRaise"
             :call-amount="legalActions.callAmount"
-            :min-raise="roomStore.bigBlind"
+            :min-raise="roomStore.minRaise || roomStore.bigBlind"
             :current-bet="roomStore.currentBet"
             :time-left-sec="localCountdown || roomStore.timeLeftSec"
             :my-chips="myPlayer?.chips || 0"

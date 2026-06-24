@@ -12,6 +12,13 @@ const router = createRouter({
 describe('CreateRoomView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    // mock localStorage for CreateRoomView
+    if (!globalThis.localStorage) {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+        writable: true,
+      })
+    }
   })
 
   it('renders the create room form', () => {

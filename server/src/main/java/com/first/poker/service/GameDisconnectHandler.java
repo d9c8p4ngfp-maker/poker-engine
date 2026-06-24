@@ -131,7 +131,7 @@ public class GameDisconnectHandler {
 
         GameEngine.ActionResult fr = foldResult.get();
 
-        // Phase 2: Broadcast disconnect notice + updated state + handle handComplete
+        // Phase 2: Broadcast disconnect notice
         var dcPayload = new HashMap<String, Object>();
         dcPayload.put("type", "player_disconnected");
         dcPayload.put("playerId", fPlayerId);
@@ -141,16 +141,20 @@ public class GameDisconnectHandler {
             broadcastHelper.broadcastGameState(fRoomId, fr.state());
 
             if (fr.handComplete()) {
-                log.info("[DISCONNECT-HAND-COMPLETE] {} triggered by {} disconnect-fold", fRoomId, fPlayerId);
-                gameSession.endGame(fRoomId, () -> {
-                    var finalRoom = roomService.findRoom(fRoomId);
-                    if (finalRoom != null) broadcastHelper.syncRoomChips(fRoomId, fr.state());
+                // handComplete involves Room state mutation — must run under lock
+                gameSession.executeWithLock(fRoomId, () -> {
+                    log.info("[DISCONNECT-HAND-COMPLETE] {} triggered by {} disconnect-fold", fRoomId, fPlayerId);
+                    gameSession.endGame(fRoomId, () -> {
+                        var finalRoom = roomService.findRoom(fRoomId);
+                        if (finalRoom != null) broadcastHelper.syncRoomChips(fRoomId, fr.state());
+                    });
+                    var room = roomService.findRoom(fRoomId);
+                    if (room != null) broadcastHelper.checkAndApplyBonuses(fRoomId, room, fr.state(), fr);
+                    if (!fr.winners().isEmpty()) {
+                        broadcastHelper.broadcastWinners(fRoomId, fr);
+                    }
+                    broadcastHelper.checkGameOver(fRoomId, fr);
                 });
-                if (broadcastHelper.checkGameOver(fRoomId, fr)) {
-                    // game-over broadcast already sent by checkGameOver
-                } else if (!fr.winners().isEmpty()) {
-                    broadcastHelper.broadcastWinners(fRoomId, fr);
-                }
             } else {
                 // Hand not complete — let autoPlayBots continue
                 broadcastHelper.autoPlayBots(fRoomId);

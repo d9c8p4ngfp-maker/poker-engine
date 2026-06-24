@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import PwaInstallBanner from './components/ui/PwaInstallBanner.vue'
 </script>
 
 <template>
@@ -13,6 +14,7 @@ import { RouterView } from 'vue-router'
     <!-- Content -->
     <div class="content-layer">
       <RouterView />
+      <PwaInstallBanner />
     </div>
   </div>
 </template>
@@ -20,7 +22,7 @@ import { RouterView } from 'vue-router'
 <style scoped>
 .app-root {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -59,6 +61,6 @@ import { RouterView } from 'vue-router'
 .content-layer {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 </style>

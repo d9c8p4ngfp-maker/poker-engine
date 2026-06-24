@@ -134,7 +134,12 @@ public class GameBroadcastHelper {
         payload.put("winnerId", bonus.winnerId());
         payload.put("bonusPerPlayer", bonus.bonusPerPlayer());
         payload.put("transfers", bonus.transfers());
-        broadcast.sendToRoom(roomId, "game", payload);
+        var room = roomService.findRoom(roomId);
+        if (room != null) {
+            for (var rp : room.getPlayers()) {
+                broadcast.sendToPlayer(rp.getPlayerId(), payload);
+            }
+        }
     }
 
     public void syncRoomChips(String roomId, GameState resolvedState) {

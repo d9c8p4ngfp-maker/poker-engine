@@ -63,26 +63,22 @@ public class GameMessageController {
 
             var state = gameSession.startGame(room, req.getPlayerId());
 
-            // Broadcast room status PLAYING so the frontend switches to game table.
-            // (Game state snapshots no longer carry the 'status' field.)
-            broadcast.sendToRoom(roomId, roomToResponse(room));
-            log.info("[START-GAME] {} broadcast room status={}", roomId, room.getStatus().name());
-
-            // Register ALL room players for disconnect tracking — not just hand
-            // participants. A non-participating owner who disconnects mid-game
-            // still needs grace-timer tracking so the room can be cleaned up.
+            // Register ALL room players for disconnect tracking
             for (var rp : room.getPlayers()) {
                 disconnectHandler.registerPlayer(roomId, rp.getPlayerId());
             }
 
             autoPlayBots(roomId);
-            // Broadcast state *after* bots auto-act so the frontend doesn't
-            // flash "blinds deducted" before bots' turns render.
+            // Broadcast game state BEFORE room status PLAYING so the frontend
+            // has player/card/pot data ready when it switches to the table view.
             var initState = gameSession.getState(roomId);
             if (initState != null) {
                 broadcastGameState(roomId, initState);
                 helper.scheduleNextTimeout(roomId, initState);
             }
+            // Now broadcast PLAYING — frontend switches to table with data already loaded
+            broadcast.sendToRoom(roomId, roomToResponse(room));
+            log.info("[START-GAME] {} broadcast room status={}", roomId, room.getStatus().name());
         } catch (Throwable e) {
             log.error("[START-GAME-ERROR] {}: {} - {}", roomId, e.getClass().getName(), e.getMessage(), e);
             e.printStackTrace(System.err);

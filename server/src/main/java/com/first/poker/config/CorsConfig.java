@@ -14,7 +14,7 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns(corsOrigin, "https://*.ngrok-free.dev", "https://*.ngrok-free.app")
+                .allowedOriginPatterns(corsOrigin, "https://*.ngrok-free.dev", "https://*.ngrok-free.app", "https://*.trycloudflare.com", "https://openfirst.cn")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);

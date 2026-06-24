@@ -153,7 +153,9 @@ public class GameDisconnectHandler {
                     if (!fr.winners().isEmpty()) {
                         broadcastHelper.broadcastWinners(fRoomId, fr);
                     }
-                    broadcastHelper.checkGameOver(fRoomId, fr);
+                    if (!broadcastHelper.checkGameOver(fRoomId, fr)) {
+                        broadcastHelper.continueHand(fRoomId);
+                    }
                 });
             } else {
                 // Hand not complete — let autoPlayBots continue
@@ -180,7 +182,7 @@ public class GameDisconnectHandler {
                             graceTimers.remove(fPlayerId);
                             log.info("[DISCONNECT-EXPIRE] {} marked LEFT in {}", fPlayerId, fRoomId);
                         });
-                    broadcast.sendToRoom(fRoomId, "room", roomToUpdatedResponse(r));
+                    broadcast.sendToRoom(fRoomId, roomToUpdatedResponse(r));
                 } catch (Exception e) {
                     log.error("[DISCONNECT-EXPIRE-ERROR] {}: {}", fPlayerId, e.getMessage(), e);
                 }

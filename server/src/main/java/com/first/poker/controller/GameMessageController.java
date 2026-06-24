@@ -134,6 +134,8 @@ public class GameMessageController {
                     broadcastWinners(roomId, result);
                 }
                 if (checkGameOver(roomId, result)) return;
+                // Game continues — auto-start next hand
+                helper.continueHand(roomId);
                 return;
             }
 
@@ -189,7 +191,7 @@ public class GameMessageController {
                             break;
                         }
                     }
-                    broadcast.sendToRoom(roomId, "room", roomToResponse(room));
+                    broadcast.sendToRoom(roomId, roomToResponse(room));
                 });
         });
     }
@@ -245,7 +247,7 @@ public class GameMessageController {
                 leavePayload.put("newOwnerId", newOwnerId);
             }
             broadcast.sendToRoom(roomId, leavePayload);
-            broadcast.sendToRoom(roomId, "room", roomToResponse(room));
+            broadcast.sendToRoom(roomId, roomToResponse(room));
         });
     }
 

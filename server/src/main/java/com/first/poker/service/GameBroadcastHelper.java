@@ -171,41 +171,20 @@ public class GameBroadcastHelper {
         // GameOver instead — sending WAITING here would cause a conflicting
         // lobby→game flicker on the frontend.
         if (!room.getConfig().isBustEndsGame()) {
-            room.setStatus(com.first.poker.model.enums.RoomStatus.WAITING);
-            // If only 1 player has chips left, the game can't continue —
-            // wait to broadcast WAITING until AFTER winners are shown (handled
-            // by checkGameOver). Broadcasting here would cause the frontend to
-            // switch to lobby before it even sees who won the hand.
             long activePlayers = room.getPlayers().stream()
                 .filter(p -> p.getStatus() != com.first.poker.model.enums.PlayerStatus.LEFT)
                 .filter(p -> p.getChips() > 0).count();
             log.info("[SYNC-CHIPS] {} activePlayers={} bustEndsGame=false", roomId, activePlayers);
             if (activePlayers < 2) {
+                // Not enough players — let checkGameOver broadcast WAITING.
+                // Don't set WAITING here; caller may auto-restart if players
+                // borrow chips before checkGameOver runs.
                 log.info("[SYNC-CHIPS] {} activePlayers<2, deferring WAITING broadcast to checkGameOver", roomId);
                 return;
             }
-            // Broadcast room status change so frontend switches to lobby
-            var roomPayload = new HashMap<String, Object>();
-            roomPayload.put("roomId", room.getRoomId());
-            roomPayload.put("name", room.getName());
-            roomPayload.put("status", room.getStatus().name());
-            roomPayload.put("players", room.getPlayers().stream().map(p -> {
-                var pm = new HashMap<String, Object>();
-                pm.put("playerId", p.getPlayerId());
-                pm.put("nickname", p.getNickname());
-                pm.put("seatIndex", p.getSeatIndex());
-                pm.put("chips", p.getChips());
-                pm.put("borrowCount", p.getBorrowCount());
-                pm.put("connected", p.isConnected());
-                pm.put("owner", p.isOwner());
-                return pm;
-            }).toList());
-            roomPayload.put("smallBlind", room.getConfig().getSmallBlind());
-            roomPayload.put("bigBlind", room.getConfig().getBigBlind());
-            roomPayload.put("maxSeats", room.getConfig().getMaxSeats());
-            roomPayload.put("initialChips", room.getConfig().getInitialChips());
-            log.info("[SYNC-CHIPS] {} broadcasting status={} playerCount={}", roomId, room.getStatus().name(), room.getPlayers().size());
-            broadcast.sendToRoom(roomId, roomPayload);
+            // 2+ players still have chips — don't broadcast WAITING.
+            // The caller will auto-restart the next hand immediately.
+            log.info("[SYNC-CHIPS] {} activePlayers>=2, waiting for auto-restart (no WAITING broadcast)", roomId);
         } else {
             log.info("[SYNC-CHIPS] {} bustEndsGame=true, skipping WAITING broadcast", roomId);
         }
@@ -341,6 +320,68 @@ public class GameBroadcastHelper {
         broadcast.sendToRoom(roomId, roomPayload);
     }
 
+    /**
+     * Auto-start the next hand when the game should continue (no game-over condition met).
+     * Called after endGame() has torn down the previous session and chips have been synced.
+     */
+    public void continueHand(String roomId) {
+        var room = roomService.findRoom(roomId);
+        if (room == null) return;
+
+        // Count active players with chips
+        long withChips = room.getPlayers().stream()
+            .filter(p -> p.getStatus() != PlayerStatus.LEFT)
+            .filter(p -> p.getChips() > 0)
+            .count();
+
+        if (withChips < 2) {
+            log.info("[CONTINUE-HAND] {} only {} players with chips, cannot continue", roomId, withChips);
+            return;
+        }
+
+        log.info("[CONTINUE-HAND] {} auto-starting next hand, playersWithChips={}", roomId, withChips);
+
+        String ownerId = room.getOwner() != null ? room.getOwner().getPlayerId() : null;
+        if (ownerId == null) {
+            log.warn("[CONTINUE-HAND] {} no owner, cannot start", roomId);
+            return;
+        }
+
+        try {
+            var state = gameSession.startGame(room, ownerId);
+            autoPlayBots(roomId);
+            var initState = gameSession.getState(roomId);
+            if (initState != null) {
+                broadcastGameState(roomId, initState);
+                scheduleNextTimeout(roomId, initState);
+            }
+            // Broadcast room status update (still PLAYING) so clients know the hand started
+            var roomPayload = new HashMap<String, Object>();
+            roomPayload.put("roomId", room.getRoomId());
+            roomPayload.put("name", room.getName());
+            roomPayload.put("status", room.getStatus().name());
+            roomPayload.put("players", room.getPlayers().stream().map(p -> {
+                var pm = new HashMap<String, Object>();
+                pm.put("playerId", p.getPlayerId());
+                pm.put("nickname", p.getNickname());
+                pm.put("seatIndex", p.getSeatIndex());
+                pm.put("chips", p.getChips());
+                pm.put("borrowCount", p.getBorrowCount());
+                pm.put("connected", p.isConnected());
+                pm.put("owner", p.isOwner());
+                return pm;
+            }).toList());
+            roomPayload.put("smallBlind", room.getConfig().getSmallBlind());
+            roomPayload.put("bigBlind", room.getConfig().getBigBlind());
+            roomPayload.put("maxSeats", room.getConfig().getMaxSeats());
+            roomPayload.put("initialChips", room.getConfig().getInitialChips());
+            broadcast.sendToRoom(roomId, roomPayload);
+            log.info("[CONTINUE-HAND] {} next hand started, {} players", roomId, state.players().size());
+        } catch (Exception e) {
+            log.error("[CONTINUE-HAND-ERROR] {} {}", roomId, e.getMessage(), e);
+        }
+    }
+
     public void handleTimeout(String roomId, String playerId) {
         gameSession.executeWithLock(roomId, () -> {
             try {
@@ -355,7 +396,8 @@ public class GameBroadcastHelper {
                     if (!result.winners().isEmpty()) {
                         broadcastWinners(roomId, result);
                     }
-                    checkGameOver(roomId, result);
+                    if (checkGameOver(roomId, result)) return;
+                    continueHand(roomId);
                     return;
                 }
 
@@ -439,6 +481,7 @@ public class GameBroadcastHelper {
                         broadcastWinners(roomId, result);
                     }
                     if (checkGameOver(roomId, result)) return;
+                    continueHand(roomId);
                     return;
                 }
 

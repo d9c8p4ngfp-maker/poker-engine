@@ -153,7 +153,7 @@ public class RoomController {
         // Broadcast outside lock (broadcast is thread-safe)
         var room = roomService.findRoom(roomId);
         if (room == null) return ResponseEntity.notFound().build();
-        broadcastService.sendToRoom(roomId, "room", roomToResponse(room));
+        broadcastService.sendToRoom(roomId, roomToResponse(room));
         var p = room.getPlayers().stream().filter(pl -> pl.getPlayerId().equals(playerId)).findFirst().orElse(null);
         return ResponseEntity.ok(Map.of("playerId", playerId,
             "chips", p != null ? p.getChips() : 0,

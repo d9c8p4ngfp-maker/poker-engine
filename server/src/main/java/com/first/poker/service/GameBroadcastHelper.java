@@ -122,6 +122,11 @@ public class GameBroadcastHelper {
                         .forEach(p -> gameSession.markReady(roomId, p.getPlayerId()));
                     log.info("[READY-BOT] {} auto-ready all bots", roomId);
 
+                    // Auto-ready owner (owner has no ready button in HandResult)
+                    if (r.getOwner() != null && activePlayers.contains(r.getOwner().getPlayerId())) {
+                        gameSession.markReady(roomId, r.getOwner().getPlayerId());
+                    }
+
                     // Broadcast initial ready status
                     var currentReady = gameSession.getReadyPlayers(roomId);
                     var readyPayload = new HashMap<String, Object>();

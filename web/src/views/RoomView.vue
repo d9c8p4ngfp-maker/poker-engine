@@ -46,7 +46,7 @@ function subscribeAll() {
 
     if (data.type === 'room_dissolved') {
       logger.logState('room_dissolved', { roomId, initiator: data.playerId })
-      alert('房间已解散')
+      showToast('房间已解散')
       disconnect()
       roomStore.reset()
       router.push('/')
@@ -55,11 +55,24 @@ function subscribeAll() {
 
     if (data.type === 'player_left') {
       logger.logState('player_left', { playerId: data.playerId, newOwnerId: data.newOwnerId })
-      roomStore.players = roomStore.players.filter(p => p.playerId !== data.playerId)
+      if (roomStore.status === 'PLAYING') {
+        const lp = roomStore.players.find((p: any) => p.playerId === data.playerId)
+        if (lp) {
+          ;(lp as any).left = true
+          lp.connected = false
+        }
+      } else {
+        roomStore.players = roomStore.players.filter(p => p.playerId !== data.playerId)
+      }
       if (data.newOwnerId && data.newOwnerId === userStore.playerId) {
-        alert('你已成为新房主')
+        showToast('你已成为新房主')
         refreshRoom()
       }
+      return
+    }
+
+    if (data.type === 'ready_status') {
+      roomStore.receiveReadyStatus(data)
       return
     }
 
@@ -80,6 +93,18 @@ function subscribeAll() {
       roomStore.addSystemMessage(data.text)
     } else if (data.roomId) {
       console.log('[RoomView] ROOM-MSG status:', data.status, 'prevStatus:', roomStore.status)
+      if (roomStore.status === 'PLAYING' && !roomStore.winners && !roomStore.gameOver) {
+        console.log('[RoomView] ROOM-MSG skipped full overwrite (game in progress), partial sync only')
+        for (const sp of (data.players || [])) {
+          const existing = roomStore.players.find((p: any) => p.playerId === sp.playerId)
+          if (existing) {
+            existing.connected = sp.connected
+            existing.chips = sp.chips
+            existing.borrowCount = sp.borrowCount || 0
+          }
+        }
+        return
+      }
       roomStore.roomId = data.roomId
       roomStore.roomName = data.name || ''
       roomStore.status = data.status || 'WAITING'
@@ -105,12 +130,14 @@ function subscribeAll() {
       logger.logState('game_over', { leaderboard: data.leaderboard.length, busted: data.bustedPlayerIds?.length })
       showBustChoice.value = false
       roomStore.setGameOver(data)
+      bonusAlert.value = null
+      bonusQueue.length = 0
       return
     }
     if (data.error) {
       logger.logError('server_error_broadcast', data.error)
       console.error('[Game Error]', data.error)
-      alert(data.error)
+      showToast(data.error)
       stopCountdown()
       return
     }
@@ -118,13 +145,15 @@ function subscribeAll() {
       logger.logState('hand_complete_winners', { count: data.winners.length })
       stopCountdown()
       roomStore.winners = data.winners
-    } else {
+    } else if (data.phase || data.bettingRound) {
       console.log('[RoomView] GAME-MSG status:', data.status, 'cp:', data.currentPlayerId?.slice(0,10), 'myTurn:', isMyTurn.value, 'roomStatus:', roomStore.status)
       roomStore.winners = null
       roomStore.gameOver = false
       roomStore.leaderboard = []
       roomStore.bustedPlayerIds = []
       roomStore.updateFromSnapshot(data, userStore.playerId)
+    } else {
+      console.warn('[RoomView] GAME-MSG unknown format:', JSON.stringify(data).slice(0, 200))
     }
     if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
     else stopCountdown()
@@ -152,15 +181,19 @@ function subscribeAll() {
     }
     if (data.error) {
       console.error('[Game Error]', data.error)
-      alert(data.error)
+      showToast(data.error)
       stopCountdown()
       return
     }
     if (data.winners) return
-    console.log('[RoomView] PERSONAL-GAME-MSG cp:', data.currentPlayerId?.slice(0,10), 'roomStatus:', roomStore.status)
-    roomStore.updateFromSnapshot(data, userStore.playerId)
-    if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
-    else stopCountdown()
+    if (data.phase || data.bettingRound) {
+      console.log('[RoomView] PERSONAL-GAME-MSG cp:', data.currentPlayerId?.slice(0,10))
+      roomStore.updateFromSnapshot(data, userStore.playerId)
+      if (roomStore.status === 'PLAYING' && isMyTurn.value) startCountdown()
+      else stopCountdown()
+    } else {
+      console.warn('[RoomView] PERSONAL-GAME-MSG unknown format:', JSON.stringify(data).slice(0, 200))
+    }
   })
 }
 
@@ -168,6 +201,7 @@ const joinError = ref('')
 const joined = ref(false)
 const joining = ref(false)
 const addingBot = ref(false)
+const removingBot = ref<string | null>(null)
 const localCountdown = ref(0)
 const showBustChoice = ref(false)
 const showLeaderboard = ref(false)
@@ -178,6 +212,13 @@ const bonusAlert = ref<{
   transfers: Record<string, number>
 } | null>(null)
 const bonusQueue: Array<typeof bonusAlert.value> = []
+const toastMsg = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function showToast(msg: string, durationMs = 3000) {
+  toastMsg.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toastMsg.value = '' }, durationMs)
+}
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
@@ -364,7 +405,7 @@ function stopCountdown() {
 }
 
 function handleAction(payload: { type: string; amount?: number }) {
-  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
   logger.logAction('action', { type: payload.type, amount: payload.amount, roomId, chips: myPlayer.value?.chips })
   send(`/app/game/${roomId}/action`, {
     playerId: userStore.playerId,
@@ -374,17 +415,24 @@ function handleAction(payload: { type: string; amount?: number }) {
 }
 
 function handleNextHand() {
-  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
   logger.logAction('next_hand', { roomId })
   console.log('[RoomView] handleNextHand: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
 
 function handleStartGame() {
-  if (!connected.value) { alert('网络连接已断开，正在重连...'); return }
+  if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
   logger.logAction('start_game', { roomId, playerCount: roomStore.players.length })
   console.log('[RoomView] handleStartGame: sending start to', roomId, 'playerId:', userStore.playerId)
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
+}
+
+function handleReady() {
+  if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
+  roomStore.sendReady()
+  send(`/app/game/${roomId}/ready`, { playerId: userStore.playerId })
+  logger.logAction('ready', { roomId, playerId: userStore.playerId })
 }
 
 async function refreshRoom() {
@@ -392,22 +440,36 @@ async function refreshRoom() {
     const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`)
     if (res.ok) {
       const data: SnapshotPayload = await res.json()
-      roomStore.roomId = data.roomId; roomStore.roomName = data.name
+      roomStore.roomId = data.roomId
+      roomStore.roomName = data.name
       roomStore.status = data.status as any
-      roomStore.players = (data.players || []).map((p: PlayerView) => ({
-        playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
-        chips: p.chips, betInRound: 0, folded: false, allIn: false,
-        holeCards: null, lastAction: null, connected: p.connected,
-        borrowCount: p.borrowCount || 0,
-        owner: p.owner || false,
-        inGame: (p as any).inGame,
-      }))
       roomStore.smallBlind = data.smallBlind
       roomStore.bigBlind = data.bigBlind
       roomStore.maxSeats = (data as any).maxSeats || 8
       roomStore.initialChips = (data as any).initialChips || 1000
       if ((data as any).dealerPlayerId != null) {
         roomStore.dealerPlayerId = (data as any).dealerPlayerId
+      }
+      if (roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED') {
+        // In-game: only update connection state, don't overwrite game state
+        for (const sp of (data.players || [])) {
+          const existing = roomStore.players.find(p => p.playerId === sp.playerId)
+          if (existing) {
+            existing.connected = sp.connected
+            existing.borrowCount = sp.borrowCount || 0
+            existing.owner = sp.owner || false
+          }
+        }
+      } else {
+        // WAITING: full update
+        roomStore.players = (data.players || []).map((p: PlayerView) => ({
+          playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
+          chips: p.chips, betInRound: 0, folded: false, allIn: false,
+          holeCards: null, lastAction: null, connected: p.connected,
+          borrowCount: p.borrowCount || 0,
+          owner: p.owner || false,
+          inGame: (p as any).inGame,
+        }))
       }
     } else {
       roomStore.roomId = ''
@@ -426,15 +488,33 @@ async function handleAddBot() {
   try {
     const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/bots?count=1`, { method: 'POST' })
     if (!res.ok) {
-      alert('添加机器人失败')
+      showToast('添加机器人失败')
     } else {
       await refreshRoom()
     }
   } catch (e) {
     logger.logError('add_bot_failed', e)
-    alert('添加机器人失败')
+    showToast('添加机器人失败')
   } finally {
     addingBot.value = false
+  }
+}
+
+async function handleRemoveBot(botPlayerId: string) {
+  if (removingBot.value) return
+  removingBot.value = botPlayerId
+  logger.logAction('remove_bot', { roomId, botPlayerId })
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/bots/${botPlayerId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      showToast(data.error || '移除机器人失败')
+    }
+  } catch (e) {
+    logger.logError('remove_bot_failed', e)
+    showToast('移除机器人失败')
+  } finally {
+    removingBot.value = null
   }
 }
 
@@ -445,9 +525,11 @@ function onBonusClose() {
 function handleLeave() {
   logger.logAction('leave_room', { roomId, status: roomStore.status })
   send(`/app/room/${roomId}/leave`, { playerId: userStore.playerId })
-  disconnect()
-  roomStore.reset()
-  router.push('/')
+  setTimeout(() => {
+    disconnect()
+    roomStore.reset()
+    router.push('/')
+  }, 200)
 }
 
 async function handleBackToRoom() {
@@ -457,7 +539,7 @@ async function handleBackToRoom() {
   roomStore.leaderboard = []
   roomStore.bustedPlayerIds = []
   await refreshRoom()
-  roomStore.status = 'WAITING'
+  // Don't manually override status — use actual status from refreshRoom
 }
 
 const borrowing = ref(false)
@@ -474,11 +556,11 @@ async function handleBorrow() {
     if (res.ok) {
       await refreshRoom()
     } else {
-      alert('借筹码失败')
+      showToast('借筹码失败')
     }
   } catch (e) {
     logger.logError('borrow_failed', e)
-    alert('借筹码失败')
+    showToast('借筹码失败')
   } finally {
     borrowing.value = false
   }
@@ -558,7 +640,7 @@ onUnmounted(() => {
             :current-player-index="roomStore.currentPlayerIndex"
             :current-player-id="roomStore.currentPlayerId"
             :my-player-id="userStore.playerId"
-            :showdown="roomStore.status === 'FINISHED'"
+            :showdown="roomStore.bettingRound === 'SHOWDOWN' || roomStore.status === 'FINISHED'"
           />
         </div>
 
@@ -567,7 +649,7 @@ onUnmounted(() => {
           <div v-if="isSpectating" class="text-center py-2 space-y-2">
             <div style="color: var(--color-text-muted); font-family: 'Press Start 2P', monospace; font-size: clamp(8px,2vh,11px);">👀 观战中 — 你未参与此局</div>
             <button class="btn-borrow" @click="handleBorrow" :disabled="borrowing">
-              {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
+              {{ borrowing ? '处理中...' : `💸 借筹码 (借 ${roomStore.initialChips})` }}
             </button>
           </div>
           <div v-else-if="isAllIn" class="text-center py-2">
@@ -593,7 +675,13 @@ onUnmounted(() => {
           v-if="roomStore.winners && !roomStore.gameOver"
           :winners="roomStore.winners"
           :is-owner="isOwner"
+          :players="roomStore.players.filter(p => p.chips > 0).map(p => ({ playerId: p.playerId, nickname: p.nickname, chips: p.chips }))"
+          :ready-players="roomStore.readyPlayers"
+          :total-active="roomStore.activeCount"
+          :all-ready="roomStore.allReady"
+          :my-player-id="userStore.playerId"
           @next-hand="handleNextHand"
+          @ready="handleReady"
         />
 
         <BustChoice
@@ -647,6 +735,14 @@ onUnmounted(() => {
                 <span v-if="(player.borrowCount || 0) > 0" class="room-player-net">
                   (净: {{ player.chips - (player.borrowCount || 0) * roomStore.initialChips }})
                 </span>
+                <button
+                  v-if="player.playerId.startsWith('bot-') && roomStore.status === 'WAITING'"
+                  class="room-remove-bot-btn"
+                  @click="handleRemoveBot(player.playerId)"
+                  :disabled="removingBot === player.playerId"
+                >
+                  {{ removingBot === player.playerId ? '...' : '✕' }}
+                </button>
               </div>
             </div>
           </div>
@@ -673,7 +769,7 @@ onUnmounted(() => {
             @click="handleBorrow"
             :disabled="borrowing"
           >
-            {{ borrowing ? '处理中...' : '💸 借筹码 (借 1000)' }}
+            {{ borrowing ? '处理中...' : `💸 借筹码 (借 ${roomStore.initialChips})` }}
           </button>
 
           <!-- Start -->
@@ -736,16 +832,23 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <!-- Toast -->
+    <Transition name="toast-fade">
+      <div v-if="toastMsg" class="toast-bar" @click="toastMsg = ''">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.room-screen { position:relative; min-height:100vh; font-family:'Press Start 2P',monospace; }
-.room-join-state { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
-.room-content { min-height:100vh; }
+.room-screen { position:relative; height:100dvh; overflow:hidden; font-family:'Press Start 2P',monospace; }
+.room-join-state { display:flex; align-items:center; justify-content:center; height:100dvh; padding:24px; }
+.room-content { height:100dvh; overflow:hidden; }
 
 /* Waiting lobby */
-.room-waiting-view { position:relative; min-height:100vh; display:flex; align-items:flex-start;
+.room-waiting-view { position:relative; height:100dvh; display:flex; align-items:flex-start;
+  overflow-y:auto;
   padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 .room-overlay { position:absolute; inset:0; background:linear-gradient(to right, rgba(30,16,6,0.58), transparent 50%); pointer-events:none; }
 .room-left-col { position:relative; z-index:1; display:flex; flex-direction:column; gap:clamp(8px,2vh,14px);
@@ -769,6 +872,26 @@ onUnmounted(() => {
 .room-player-name { font-size:clamp(8px,2vh,11px); color:var(--color-text-light); }
 .room-player-you { font-size:clamp(7px,1.8vh,10px); color:var(--color-gold); }
 .room-player-right { display:flex; align-items:center; gap:4px; }
+.room-remove-bot-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 2vh, 11px);
+  padding: 4px 8px;
+  margin-left: 6px;
+  background: rgba(180, 50, 50, 0.6);
+  border: 1px solid rgba(180, 50, 50, 0.8);
+  border-radius: 4px;
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: all 0.1s;
+  min-width: 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.room-remove-bot-btn:hover { background: rgba(200, 60, 60, 0.8); }
+.room-remove-bot-btn:active:not(:disabled) { transform: scale(0.9); }
+.room-remove-bot-btn:disabled { opacity: 0.5; cursor: default; }
 .room-player-chips { font-size:clamp(8px,2vh,11px); color:var(--color-gold); }
 .room-player-net { font-size:clamp(7px,1.8vh,10px); color:var(--color-accent); }
 .room-share-hint { font-size:clamp(7px,1.8vh,10px); color:rgba(224,176,48,0.35); text-align:center; margin-top:4px; }
@@ -792,7 +915,7 @@ onUnmounted(() => {
   border:2px solid #802020; border-radius:10px; color:var(--color-text-light); cursor:pointer; }
 
 /* Game view */
-.room-game-view { display:flex; flex-direction:column; min-height:100vh; }
+.room-game-view { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
 .game-top-bar { display:flex; justify-content:space-between; align-items:center;
   padding:clamp(6px,1.5vh,10px) clamp(10px,2.5vw,20px);
   padding-top:max(clamp(6px,1.5vh,10px), var(--safe-top));
@@ -804,7 +927,7 @@ onUnmounted(() => {
 .game-phase { font-size:clamp(8px,2vh,11px); color:var(--color-text-light); }
 .game-countdown { font-size:clamp(10px,2.5vh,14px); color:var(--color-gold); }
 .game-countdown.urgent { color:var(--color-accent); animation:pulse 1s infinite; }
-.game-table-area { flex:1; display:flex; align-items:center; justify-content:center; padding:clamp(4px,1vh,10px); }
+.game-table-area { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(4px,1vh,10px); }
 .game-action-area { padding:clamp(4px,1vh,8px) clamp(6px,1.5vh,12px); padding-bottom:max(clamp(8px,2vh,12px), var(--safe-bottom)); }
 
 /* Modal */
@@ -831,4 +954,26 @@ onUnmounted(() => {
   transition: opacity 0.1s;
 }
 .game-lb-btn:active { opacity: 1; transform: scale(0.9); }
+
+/* Toast */
+.toast-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: var(--color-text-light);
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 2vh, 11px);
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 100;
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast-fade-enter-active { transition: opacity 0.2s, transform 0.2s; }
+.toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.toast-fade-enter-from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+.toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 </style>

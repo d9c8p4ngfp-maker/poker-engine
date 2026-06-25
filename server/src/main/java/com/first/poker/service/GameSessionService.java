@@ -17,6 +17,29 @@ public class GameSessionService {
 
     private final ConcurrentHashMap<String, GameState> sessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> roomLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, java.util.Set<String>> readyPlayers = new ConcurrentHashMap<>();
+
+    public void markReady(String roomId, String playerId) {
+        readyPlayers.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(playerId);
+    }
+
+    public java.util.Set<String> getReadyPlayers(String roomId) {
+        return readyPlayers.getOrDefault(roomId, java.util.Set.of());
+    }
+
+    public void clearReady(String roomId) {
+        readyPlayers.remove(roomId);
+    }
+
+    public void removeReady(String roomId, String playerId) {
+        var set = readyPlayers.get(roomId);
+        if (set != null) set.remove(playerId);
+    }
+
+    public boolean allReady(String roomId, java.util.List<String> activePlayers) {
+        var ready = getReadyPlayers(roomId);
+        return activePlayers.stream().allMatch(ready::contains);
+    }
 
     public boolean hasActiveSession(String roomId) {
         return sessions.containsKey(roomId);
@@ -41,6 +64,7 @@ public class GameSessionService {
         ReentrantLock lock = roomLocks.computeIfAbsent(roomId, k -> new ReentrantLock());
         lock.lock();
         try {
+            clearReady(roomId);
             room.cleanupLeftPlayers();
             // Only owner can start
             if (room.getOwner() == null || !room.getOwner().getPlayerId().equals(requesterId)) {
@@ -113,6 +137,20 @@ public class GameSessionService {
         } finally {
             lock.unlock();
         }
+    }
+
+    public GameEngine.ActionResult applyActionNoLock(String roomId, String playerId, GameAction action, int amount) {
+        GameState state = sessions.get(roomId);
+        if (state == null) {
+            throw new IllegalStateException("No active game in room " + roomId);
+        }
+        var currentPlayer = state.currentPlayer();
+        if (!currentPlayer.playerId().equals(playerId)) {
+            throw new IllegalArgumentException("Not your turn: expected " + currentPlayer.playerId());
+        }
+        var result = GameEngine.processAction(state, action, amount);
+        sessions.put(roomId, result.state());
+        return result;
     }
 
     public GameState getState(String roomId) {

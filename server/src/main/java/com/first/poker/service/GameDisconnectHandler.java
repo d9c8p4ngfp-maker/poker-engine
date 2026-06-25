@@ -144,18 +144,7 @@ public class GameDisconnectHandler {
                 // handComplete involves Room state mutation — must run under lock
                 gameSession.executeWithLock(fRoomId, () -> {
                     log.info("[DISCONNECT-HAND-COMPLETE] {} triggered by {} disconnect-fold", fRoomId, fPlayerId);
-                    gameSession.endGame(fRoomId, () -> {
-                        var finalRoom = roomService.findRoom(fRoomId);
-                        if (finalRoom != null) broadcastHelper.syncRoomChips(fRoomId, fr.state());
-                    });
-                    var room = roomService.findRoom(fRoomId);
-                    if (room != null) broadcastHelper.checkAndApplyBonuses(fRoomId, room, fr.state(), fr);
-                    if (!fr.winners().isEmpty()) {
-                        broadcastHelper.broadcastWinners(fRoomId, fr);
-                    }
-                    if (!broadcastHelper.checkGameOver(fRoomId, fr)) {
-                        broadcastHelper.continueHand(fRoomId);
-                    }
+                    broadcastHelper.endHandFlow(fRoomId, fr);
                 });
             } else {
                 // Hand not complete — let autoPlayBots continue
@@ -180,7 +169,8 @@ public class GameDisconnectHandler {
                         .ifPresent(p -> {
                             p.setStatus(PlayerStatus.LEFT);
                             graceTimers.remove(fPlayerId);
-                            log.info("[DISCONNECT-EXPIRE] {} marked LEFT in {}", fPlayerId, fRoomId);
+                            playerRooms.remove(fPlayerId);
+                            log.info("[DISCONNECT-EXPIRE] {} marked LEFT in {}, cleaned up maps", fPlayerId, fRoomId);
                         });
                     broadcast.sendToRoom(fRoomId, roomToUpdatedResponse(r));
                 } catch (Exception e) {
@@ -189,6 +179,7 @@ public class GameDisconnectHandler {
             });
         }, 300, TimeUnit.SECONDS);
         graceTimers.put(fPlayerId, timer);
+        sessionToPlayer.remove(fSessionId);
     }
 
     public void onReconnect(String playerId) {

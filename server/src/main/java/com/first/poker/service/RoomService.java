@@ -115,6 +115,14 @@ public class RoomService {
         return bots;
     }
 
+    public boolean removeBot(String roomId, String botPlayerId) {
+        Room room = registry.findById(roomId);
+        if (room == null) return false;
+        if (room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) return false;
+        if (!botPlayerId.startsWith("bot-")) return false;
+        return room.removePlayer(botPlayerId);
+    }
+
     public boolean leaveRoom(String roomId, String playerId) {
         Room room = registry.findById(roomId);
         if (room == null) return false;
@@ -189,5 +197,6 @@ public class RoomService {
         if (req.getBonusStraightFlushEnabled() != null) config.setBonusStraightFlushEnabled(req.getBonusStraightFlushEnabled());
         if (req.getBonusStraightFlushAmount() != null) config.setBonusStraightFlushAmount(req.getBonusStraightFlushAmount());
         if (req.getBonusRoyalFlushDouble() != null) config.setBonusRoyalFlushDouble(req.getBonusRoyalFlushDouble());
+        if (req.getAutoContinue() != null) config.setAutoContinue(req.getAutoContinue());
     }
 }

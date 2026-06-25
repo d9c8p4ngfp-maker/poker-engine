@@ -99,6 +99,21 @@ public class RoomController {
         ));
     }
 
+    @DeleteMapping("/{roomId}/bots/{botPlayerId}")
+    public ResponseEntity<?> removeBot(@PathVariable String roomId, @PathVariable String botPlayerId) {
+        var room = roomService.findRoom(roomId);
+        if (room == null) return ResponseEntity.notFound().build();
+        if (room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) {
+            return ResponseEntity.badRequest().body(Map.of("error", "只能在等待状态移除机器人"));
+        }
+        boolean removed = roomService.removeBot(roomId, botPlayerId);
+        if (!removed) {
+            return ResponseEntity.badRequest().body(Map.of("error", "移除失败"));
+        }
+        broadcastService.sendToRoom(roomId, roomToResponse(room));
+        return ResponseEntity.ok(Map.of("roomId", roomId, "removed", botPlayerId, "playerCount", room.getPlayers().size()));
+    }
+
     @PostMapping("/{roomId}/start")
     public ResponseEntity<?> startGame(@PathVariable String roomId) {
         var room = roomService.findRoom(roomId);

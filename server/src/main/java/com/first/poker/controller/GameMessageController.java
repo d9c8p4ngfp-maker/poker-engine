@@ -88,6 +88,39 @@ public class GameMessageController {
         }
     }
 
+    @MessageMapping("/game/{roomId}/ready")
+    public void handleReady(@DestinationVariable String roomId,
+                            @Payload java.util.Map<String, Object> payload) {
+        String playerId = (String) payload.get("playerId");
+        var room = roomService.findRoom(roomId);
+        if (room == null || room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) return;
+
+        long activeCount = room.getPlayers().stream()
+            .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE && p.getChips() > 0)
+            .count();
+        if (activeCount < room.getConfig().getMinPlayers()) return;
+
+        gameSession.markReady(roomId, playerId);
+
+        var activePlayers = room.getPlayers().stream()
+            .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE && p.getChips() > 0)
+            .map(com.first.poker.model.Player::getPlayerId)
+            .toList();
+
+        var readySet = gameSession.getReadyPlayers(roomId);
+        var statusPayload = new java.util.HashMap<String, Object>();
+        statusPayload.put("type", "ready_status");
+        statusPayload.put("readyPlayers", readySet.stream().toList());
+        statusPayload.put("totalActive", activePlayers.size());
+        statusPayload.put("allReady", gameSession.allReady(roomId, activePlayers));
+        broadcast.sendToRoom(roomId, statusPayload);
+
+        log.info("[READY] {} player={} ready={}/{}", roomId, playerId,
+                 readySet.size(), activePlayers.size());
+
+        helper.tryAutoContinue(roomId);
+    }
+
     @MessageMapping("/game/{roomId}/action")
     public void processAction(@DestinationVariable String roomId, @Valid @Payload GameActionRequest req) {
         // Manual validation: action is required for this endpoint but not for startGame
@@ -98,66 +131,37 @@ public class GameMessageController {
             return;
         }
         log.info("[ACTION] {} {} {} amount={}", roomId, req.getPlayerId(), req.getAction(), req.getAmount());
-        try {
-            GameAction action;
+        gameSession.executeWithLock(roomId, () -> {
             try {
-                action = GameAction.valueOf(req.getAction().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                var errorPayload = new java.util.HashMap<String, Object>();
-                errorPayload.put("error", "Invalid action: " + req.getAction());
-                broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
-                return;
-            }
-            // Cancel any existing timeout before processing — the player acted,
-            // so their timeout is no longer needed. This also prevents a stale
-            // timeout from firing during autoPlayBots and corrupting the state.
-            timeoutScheduler.cancelTimeout(roomId);
-
-            var result = gameSession.applyAction(roomId, req.getPlayerId(), action, req.getAmount());
-
-            // Reset inactivity timer — any game action counts as activity
-            // room is guaranteed to exist after applyAction succeeds (session exists => room exists)
-            var room = roomService.findRoom(roomId);
-            if (room != null) room.setLastActivity(System.currentTimeMillis());
-
-            var state = result.state();
-            log.info("[ACTION-RESULT] {} curPlayer={} phase={} handComplete={}", roomId, state.currentPlayer().playerId(), state.phase(), result.handComplete());
-
-            if (result.handComplete()) {
-                log.info("[HAND-COMPLETE] {} winners={}", roomId, result.winners());
-                com.first.poker.engine.GameState finalState = result.state();
-                gameSession.endGame(roomId, () -> syncRoomChips(roomId, finalState));
-                if (room != null) checkAndApplyBonuses(roomId, room, finalState, result);
-                // Broadcast winners BEFORE checkGameOver — bustEndsGame=false
-                // with only 1 active player still deserves to show who won.
-                if (!result.winners().isEmpty()) {
-                    broadcastWinners(roomId, result);
+                GameAction action;
+                try {
+                    action = GameAction.valueOf(req.getAction().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    var errorPayload = new java.util.HashMap<String, Object>();
+                    errorPayload.put("error", "Invalid action: " + req.getAction());
+                    broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
+                    return;
                 }
-                if (checkGameOver(roomId, result)) return;
-                // Game continues — auto-start next hand
-                helper.continueHand(roomId);
-                return;
+                timeoutScheduler.cancelTimeout(roomId);
+                var result = gameSession.applyActionNoLock(roomId, req.getPlayerId(), action, req.getAmount());
+                var room = roomService.findRoom(roomId);
+                if (room != null) room.setLastActivity(System.currentTimeMillis());
+                if (result.handComplete()) {
+                    log.info("[HAND-COMPLETE] {} winners={}", roomId, result.winners());
+                    helper.endHandFlow(roomId, result);
+                    return;
+                }
+                helper.broadcastGameState(roomId, result.state());
+                helper.autoPlayBots(roomId);
+                var currState = gameSession.getState(roomId);
+                if (currState != null) helper.scheduleNextTimeout(roomId, currState);
+            } catch (Throwable e) {
+                log.error("[processAction] {} {}: {}", req.getPlayerId(), req.getAction(), e.getMessage(), e);
+                var errorPayload = new java.util.HashMap<String, Object>();
+                errorPayload.put("error", e.getMessage());
+                broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
             }
-
-            broadcastGameState(roomId, state);
-
-            autoPlayBots(roomId);
-            // Schedule timeout for next human player (after bots finish)
-            var currState = gameSession.getState(roomId);
-            if (currState != null) helper.scheduleNextTimeout(roomId, currState);
-        } catch (Throwable e) {
-            log.error("[processAction] {} {}: {} - {}", req.getPlayerId(), req.getAction(), e.getClass().getName(), e.getMessage(), e);
-            e.printStackTrace(System.err);
-            System.err.flush();
-            // Send error back to the player
-            var errorPayload = new java.util.HashMap<String, Object>();
-            errorPayload.put("error", e.getMessage());
-            broadcast.sendToPlayer(req.getPlayerId(), errorPayload);
-            // Try to auto-play bots in case the game should continue
-            autoPlayBots(roomId);
-            var retryState = gameSession.getState(roomId);
-            if (retryState != null) helper.scheduleNextTimeout(roomId, retryState);
-        }
+        });
     }
 
     @MessageMapping("/room/{roomId}/queue-accept")
@@ -212,14 +216,30 @@ public class GameMessageController {
             // Auto-fold if game is in progress
             if (isPlaying) {
                 try {
-                    gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
+                    var foldResult = gameSession.applyAction(roomId, playerId, GameAction.FOLD, 0);
+                    if (foldResult.handComplete()) {
+                        log.info("[LEAVE-HAND-COMPLETE] {} triggered by {} leaving", roomId, playerId);
+                        helper.endHandFlow(roomId, foldResult);
+                    } else {
+                        helper.broadcastGameState(roomId, foldResult.state());
+                        helper.autoPlayBots(roomId);
+                        var postState = gameSession.getState(roomId);
+                        if (postState != null) helper.scheduleNextTimeout(roomId, postState);
+                    }
                 } catch (Exception e) {
                     log.warn("[LEAVE-FOLD] {} fold failed (may not be their turn): {}", playerId, e.getMessage());
                 }
             }
 
             disconnectHandler.cancelGraceTimer(playerId);
-            roomService.leaveRoom(roomId, playerId);
+            if (isPlaying) {
+                room.getPlayers().stream()
+                    .filter(p -> p.getPlayerId().equals(playerId))
+                    .findFirst()
+                    .ifPresent(p -> p.setStatus(com.first.poker.model.enums.PlayerStatus.LEFT));
+            } else {
+                roomService.leaveRoom(roomId, playerId);
+            }
             room.setLastActivity(System.currentTimeMillis());
 
             String newOwnerId = null;
@@ -234,6 +254,7 @@ public class GameMessageController {
                     dissolvePayload.put("type", "room_dissolved");
                     dissolvePayload.put("roomId", roomId);
                     gameSession.endGameAndCleanupLock(roomId, null);
+                    gameSession.clearReady(roomId);
                     registry.removeRoom(roomId);
                     broadcast.sendToRoom(roomId, dissolvePayload);
                     return;
@@ -248,6 +269,23 @@ public class GameMessageController {
             }
             broadcast.sendToRoom(roomId, leavePayload);
             broadcast.sendToRoom(roomId, roomToResponse(room));
+
+            // Update ready status when player leaves during WAITING phase
+            if (room.getStatus() == com.first.poker.model.enums.RoomStatus.WAITING) {
+                gameSession.removeReady(roomId, playerId);
+                var activePlayers = room.getPlayers().stream()
+                    .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE && p.getChips() > 0)
+                    .map(p -> p.getPlayerId())
+                    .toList();
+                if (!activePlayers.isEmpty()) {
+                    var readyPayload = new java.util.HashMap<String, Object>();
+                    readyPayload.put("type", "ready_status");
+                    readyPayload.put("readyPlayers", gameSession.getReadyPlayers(roomId).stream().toList());
+                    readyPayload.put("totalActive", activePlayers.size());
+                    readyPayload.put("allReady", gameSession.allReady(roomId, activePlayers));
+                    broadcast.sendToRoom(roomId, readyPayload);
+                }
+            }
         });
     }
 
@@ -272,6 +310,7 @@ public class GameMessageController {
             dissolvePayload.put("type", "room_dissolved");
             dissolvePayload.put("roomId", roomId);
             gameSession.endGameAndCleanupLock(roomId, null);
+            gameSession.clearReady(roomId);
             registry.removeRoom(roomId);
             broadcast.sendToRoom(roomId, dissolvePayload);
         });

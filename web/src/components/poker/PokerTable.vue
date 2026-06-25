@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import PlayerSeat from './PlayerSeat.vue'
 import PlayingCard from './PlayingCard.vue'
+import ChipAnimation from './ChipAnimation.vue'
+import DealAnimation from './DealAnimation.vue'
 
 interface SeatPlayer {
   playerId:string; nickname:string; chips:number; betInRound:number
@@ -45,10 +47,65 @@ const slots = computed(() => {
   props.communityCards.forEach((c, i) => { if (i < 5) s[i] = c })
   return s
 })
+
+const isDealing = ref(false)
+const chipAnimations = ref<{ id: string; fromX: number; fromY: number; toX: number; toY: number; amount: number; delay: number }[]>([])
+let animIdCounter = 0
+
+function getSeatCenter(seatIndex: number): { x: number; y: number } {
+  const pos = ALL_SEATS[seatIndex % ALL_SEATS.length]
+  return { x: (pos.x / 100) * 960, y: (pos.y / 100) * 400 }
+}
+
+// Chip fly on pot increase
+watch(() => props.pot, (newPot, oldPot) => {
+  if (newPot > oldPot && props.currentPlayerId) {
+    const player = sorted.value.find(s => s.playerId === props.currentPlayerId)
+    if (player) {
+      const from = getSeatCenter(player.seatIndex)
+      chipAnimations.value = [{
+        id: 'chip-' + (++animIdCounter),
+        fromX: from.x, fromY: from.y,
+        toX: 480, toY: 200,
+        amount: newPot - oldPot,
+        delay: 0
+      }]
+    }
+  }
+})
+
+// Detect new hand → trigger deal animation
+watch(() => props.currentPlayerIndex, (newVal, oldVal) => {
+  if (newVal !== -1 && oldVal === -1) {
+    isDealing.value = true
+  }
+})
+
+const playerPositions = computed(() =>
+  sorted.value.map(s => ({
+    playerId: s.playerId,
+    x: (s.pos.x / 100) * 960,
+    y: (s.pos.y / 100) * 400,
+  }))
+)
+
+const dealerPosition = computed(() => {
+  const dp = sorted.value.find(s => s.playerId === props.dealerPlayerId)
+  const pos = dp ? ALL_SEATS[dp.seatIndex % ALL_SEATS.length] : ALL_SEATS[0]
+  return { x: (pos.x / 100) * 960, y: (pos.y / 100) * 400 }
+})
 </script>
 
 <template>
   <div class="table" style="image-rendering:pixelated;">
+    <DealAnimation
+      v-if="isDealing"
+      :player-positions="playerPositions"
+      :dealer-position="dealerPosition"
+      :card-count="2"
+      @complete="isDealing = false"
+    />
+    <ChipAnimation :animations="chipAnimations" />
     <div class="felt"></div>
     <div v-for="p in sorted" :key="p.playerId" class="seat-wrap"
       :style="{ left: p.pos.x + '%', top: p.pos.y + '%', transform: 'translate(-50%,-50%)' }">

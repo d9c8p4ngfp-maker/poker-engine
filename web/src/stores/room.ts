@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export interface PlayerView {
   playerId: string
@@ -64,6 +64,21 @@ export const useRoomStore = defineStore('room', () => {
   const leaderboard = ref<{ playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number; netChips?: number }[]>([])
   const bustedPlayerIds = ref<string[]>([])
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
+  const readyPlayers = ref<string[]>([])
+  const isReady = ref(false)
+
+  const activeCount = computed(() => players.value.filter(p => p.chips > 0).length)
+  const readyCount = computed(() => readyPlayers.value.length)
+  const allReady = computed(() => activeCount.value > 0 && readyCount.value >= activeCount.value)
+
+  function sendReady() {
+    // Optimistic local flag. Actual STOMP send is handled in RoomView.
+    isReady.value = true
+  }
+
+  function receiveReadyStatus(data: { readyPlayers: string[]; totalActive: number; allReady: boolean }) {
+    readyPlayers.value = data.readyPlayers || []
+  }
 
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {
     if (snapshot.roomId != null) roomId.value = snapshot.roomId
@@ -134,6 +149,8 @@ export const useRoomStore = defineStore('room', () => {
     leaderboard.value = []
     bustedPlayerIds.value = []
     messages.value = []
+    readyPlayers.value = []
+    isReady.value = false
   }
 
   return {
@@ -141,6 +158,7 @@ export const useRoomStore = defineStore('room', () => {
     currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
     maxSeats, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
-    updateFromSnapshot, addSystemMessage, setGameOver, reset,
+    readyPlayers, isReady, allReady, readyCount, activeCount,
+    updateFromSnapshot, addSystemMessage, setGameOver, reset, sendReady, receiveReadyStatus,
   }
 })

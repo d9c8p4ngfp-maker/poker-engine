@@ -81,6 +81,7 @@ public class RoomController {
         res.put("bigBlind", room.getConfig().getBigBlind());
         res.put("maxSeats", room.getConfig().getMaxSeats());
         res.put("dealerPlayerId", room.getDealerPlayerId());
+        res.put("minPlayers", room.getConfig().getMinPlayers());
         res.put("initialChips", room.getConfig().getInitialChips());
         return res;
     }

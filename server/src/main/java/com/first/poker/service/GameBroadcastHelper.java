@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * Shared game broadcast logic used by both GameMessageController (STOMP) and
@@ -61,6 +63,8 @@ public class GameBroadcastHelper {
     private final java.util.concurrent.ScheduledExecutorService endHandExecutor =
         java.util.concurrent.Executors.newScheduledThreadPool(2);
 
+    private final ConcurrentHashMap<String, ScheduledFuture<?>> readyTimeouts = new ConcurrentHashMap<>();
+
     @jakarta.annotation.PreDestroy
     public void shutdownEndHandExecutor() {
         endHandExecutor.shutdown();
@@ -90,7 +94,28 @@ public class GameBroadcastHelper {
             broadcastWinners(roomId, result);
         }
 
-        // 5. Delay 3s then handle gameOver / WAITING broadcast.
+        // 5. If game is over (bustEndsGame + player busted → FINISHED), defer broadcast
+        //    so the frontend shows HandResult first, then GameOver.
+        if (checkGameOver(roomId, result)) {
+            log.info("[END-HAND-FLOW] {} game over, deferring GameOver", roomId);
+            var oldTimeout = readyTimeouts.remove(roomId);
+            if (oldTimeout != null) oldTimeout.cancel(false);
+            // Send deferred GameOver data immediately so HandResult can show "查看最终排名" button
+            broadcastGameOverDeferred(roomId, result);
+            // Auto-apply after 6s if user doesn't click first
+            endHandExecutor.schedule(() -> {
+                gameSession.executeWithLock(roomId, () -> {
+                    var r = roomService.findRoom(roomId);
+                    if (r != null && r.getStatus() == RoomStatus.FINISHED) {
+                        log.info("[END-HAND-FLOW] {} deferred GameOver broadcast", roomId);
+                        broadcastGameOver(roomId, r, result);
+                    }
+                });
+            }, 6, java.util.concurrent.TimeUnit.SECONDS);
+            return;
+        }
+
+        // 6. Delay 3s then handle WAITING broadcast + ready state.
         //    Gives the frontend time to display winner info.
         //    Must run under room lock to prevent races with startGame.
         endHandExecutor.schedule(() -> {
@@ -102,11 +127,8 @@ public class GameBroadcastHelper {
                     }
                     var r = roomService.findRoom(roomId);
                     if (r == null) return;
-                    boolean gameOver = checkGameOver(roomId, result);
-                    if (!gameOver) {
-                        broadcast.sendToRoom(roomId, buildRoomPayload(r));
-                        log.info("[END-HAND-FLOW] {} delayed WAITING broadcast sent", roomId);
-                    }
+                    r.setStatus(RoomStatus.WAITING);
+                    log.info("[END-HAND-FLOW] {} ready phase started", roomId);
 
                     // Only run ready flow when enough players to start next hand
                     var activePlayers = r.getPlayers().stream()
@@ -122,11 +144,6 @@ public class GameBroadcastHelper {
                         .forEach(p -> gameSession.markReady(roomId, p.getPlayerId()));
                     log.info("[READY-BOT] {} auto-ready all bots", roomId);
 
-                    // Auto-ready owner (owner has no ready button in HandResult)
-                    if (r.getOwner() != null && activePlayers.contains(r.getOwner().getPlayerId())) {
-                        gameSession.markReady(roomId, r.getOwner().getPlayerId());
-                    }
-
                     // Broadcast initial ready status
                     var currentReady = gameSession.getReadyPlayers(roomId);
                     var readyPayload = new HashMap<String, Object>();
@@ -138,7 +155,8 @@ public class GameBroadcastHelper {
 
                     // 15s timeout: auto-ready all non-ready players
                     if (activePlayers.size() >= r.getConfig().getMinPlayers()) {
-                        endHandExecutor.schedule(() -> {
+                        var future = endHandExecutor.schedule(() -> {
+                        readyTimeouts.remove(roomId);
                         gameSession.executeWithLock(roomId, () -> {
                             if (gameSession.hasActiveSession(roomId)) return;
                             var room2 = roomService.findRoom(roomId);
@@ -163,7 +181,8 @@ public class GameBroadcastHelper {
 
                             tryAutoContinue(roomId);
                         });
-                    }, 15, java.util.concurrent.TimeUnit.SECONDS);
+                        }, 15, java.util.concurrent.TimeUnit.SECONDS);
+                        readyTimeouts.put(roomId, future);
                     }
                 } catch (Exception e) {
                     log.error("[END-HAND-FLOW] {} delayed task error: {}", roomId, e.getMessage(), e);
@@ -366,6 +385,7 @@ public class GameBroadcastHelper {
         roomPayload.put("maxSeats", room.getConfig().getMaxSeats());
         roomPayload.put("dealerPlayerId", room.getDealerPlayerId());
         roomPayload.put("initialChips", room.getConfig().getInitialChips());
+        roomPayload.put("minPlayers", room.getConfig().getMinPlayers());
         return roomPayload;
     }
 
@@ -383,33 +403,9 @@ public class GameBroadcastHelper {
         if (!anyBusted) return false;
 
         if (room.getConfig().isBustEndsGame()) {
-            log.info("[CHECK-GAME-OVER] {} bustEndsGame=true, setting FINISHED", roomId);
+            log.info("[CHECK-GAME-OVER] {} bustEndsGame=true, setting FINISHED (deferred broadcast)", roomId);
             room.setStatus(RoomStatus.FINISHED);
-            broadcastGameOver(roomId, room, result);
-            // Reset to WAITING after broadcast so the room is playable again
-            room.setStatus(RoomStatus.WAITING);
-            // Broadcast WAITING so frontend knows it's back to lobby
-            var roomPayload = new HashMap<String, Object>();
-            roomPayload.put("roomId", room.getRoomId());
-            roomPayload.put("name", room.getName());
-            roomPayload.put("status", room.getStatus().name());
-            roomPayload.put("players", room.getPlayers().stream().map(p -> {
-                var pm = new HashMap<String, Object>();
-                pm.put("playerId", p.getPlayerId());
-                pm.put("nickname", p.getNickname());
-                pm.put("seatIndex", p.getSeatIndex());
-                pm.put("chips", p.getChips());
-                pm.put("borrowCount", p.getBorrowCount());
-                pm.put("connected", p.isConnected());
-                pm.put("owner", p.isOwner());
-                return pm;
-            }).toList());
-            roomPayload.put("smallBlind", room.getConfig().getSmallBlind());
-            roomPayload.put("bigBlind", room.getConfig().getBigBlind());
-            roomPayload.put("maxSeats", room.getConfig().getMaxSeats());
-            roomPayload.put("initialChips", room.getConfig().getInitialChips());
-            broadcast.sendToRoom(roomId, roomPayload);
-            log.info("[CHECK-GAME-OVER] {} reset to WAITING and broadcast", roomId);
+            // Do NOT broadcast GameOver here — endHandFlow will defer it so HandResult shows first.
             return true;
         }
 
@@ -472,6 +468,35 @@ public class GameBroadcastHelper {
             return pm;
         }).toList());
         broadcast.sendToRoom(roomId, roomPayload);
+    }
+
+    /**
+     * Like broadcastGameOver but with deferred=true flag.
+     * Sent immediately so HandResult can show "查看最终排名" button,
+     * while the actual GameOver overlay is deferred.
+     */
+    private void broadcastGameOverDeferred(String roomId, GameEngine.ActionResult result) {
+        var room = roomService.findRoom(roomId);
+        if (room == null) return;
+        int borrowUnit = room.getConfig().getInitialChips();
+        var payload = new HashMap<String, Object>();
+        payload.put("deferred", true);
+        payload.put("winners", result.winners().stream()
+            .map(w -> java.util.Map.of("playerId", w.playerId(), "nickname", w.nickname(),
+                "handName", w.handName(), "amount", w.amount()))
+            .toList());
+        payload.put("leaderboard", room.getPlayers().stream()
+            .sorted((a, b) -> Integer.compare(
+                b.getChips() - b.getBorrowCount() * borrowUnit,
+                a.getChips() - a.getBorrowCount() * borrowUnit))
+            .map(p -> java.util.Map.of("playerId", p.getPlayerId(), "nickname", p.getNickname(),
+                "chips", p.getChips(), "borrowCount", p.getBorrowCount(),
+                "borrowed", p.getBorrowCount() * borrowUnit,
+                "netChips", p.getChips() - p.getBorrowCount() * borrowUnit))
+            .toList());
+        payload.put("bustedPlayerIds", room.getPlayers().stream()
+            .filter(p -> p.getChips() <= 0).map(com.first.poker.model.Player::getPlayerId).toList());
+        broadcast.sendToRoom(roomId, "game", payload);
     }
 
     /**
@@ -629,8 +654,8 @@ public class GameBroadcastHelper {
                 break;
             }
             var cp = state.currentPlayer();
-            if (cp.folded() || cp.allIn()) {
-                log.info("[AUTOBOT] {} stop: {} folded={} allIn={}", roomId, cp.playerId(), cp.folded(), cp.allIn());
+            if (cp.folded() || cp.allIn() || cp.chips() <= 0) {
+                log.info("[AUTOBOT] {} stop: {} folded={} allIn={} chips={}", roomId, cp.playerId(), cp.folded(), cp.allIn(), cp.chips());
                 break;
             }
 

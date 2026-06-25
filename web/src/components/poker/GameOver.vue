@@ -63,6 +63,8 @@ function getMedal(index: number) {
 }
 .gameover-modal {
   width: clamp(300px, 55vw, 520px);
+  max-height: 90vh;
+  overflow-y: auto;
   background: var(--color-panel-bg);
   border: 2px solid var(--color-button-shadow);
   border-radius: 14px;

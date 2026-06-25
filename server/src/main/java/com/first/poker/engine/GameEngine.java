@@ -31,6 +31,11 @@ public class GameEngine {
         // Cap bet/raise to total chips (roundBet + remaining chips) BEFORE validation
         amount = Math.min(amount, state.currentPlayer().roundBet() + state.currentPlayer().chips());
 
+        // Normalize CALL→CHECK when nothing to call (race between frontend state and backend state)
+        if (action == GameAction.CALL && state.currentBet() <= state.currentPlayer().roundBet()) {
+            action = GameAction.CHECK;
+        }
+
         ActionValidator.validate(state, action, amount);
 
         GameState newState = BettingRoundManager.applyAction(

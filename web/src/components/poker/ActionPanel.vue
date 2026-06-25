@@ -77,7 +77,7 @@ const timer=computed(()=>{const s=Math.max(0,Math.floor(p.timeLeftSec));return p
 }
 .bet-area { display:flex; flex-direction:column; gap:clamp(4px,1vh,8px); }
 .slider-row { display:flex; align-items:center; gap:clamp(6px,1.5vh,10px); }
-.slider { flex:1; accent-color:#f0c040; }
+.slider { flex:1; accent-color:#f0c040; height:24px; }
 .val {
   font-size:clamp(9px,2.3vh,13px); font-weight:bold;
   color:#fff; min-width:44px; text-align:right;

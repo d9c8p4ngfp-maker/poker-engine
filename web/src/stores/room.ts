@@ -53,6 +53,7 @@ export const useRoomStore = defineStore('room', () => {
   const smallBlind = ref(10)
   const bigBlind = ref(20)
   const maxSeats = ref(8)
+  const minPlayers = ref(2)
   const initialChips = ref(1000)
   const minRaise = ref(20)
   const dealerIndex = ref(0)
@@ -66,10 +67,12 @@ export const useRoomStore = defineStore('room', () => {
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
   const readyPlayers = ref<string[]>([])
   const isReady = ref(false)
+  const pendingGameOver = ref<{ winners: any[]; leaderboard: any[]; bustedPlayerIds: string[] } | null>(null)
 
   const activeCount = computed(() => players.value.filter(p => p.chips > 0).length)
   const readyCount = computed(() => readyPlayers.value.length)
   const allReady = computed(() => activeCount.value > 0 && readyCount.value >= activeCount.value)
+  const hasPendingGameOver = computed(() => pendingGameOver.value !== null)
 
   function sendReady() {
     // Optimistic local flag. Actual STOMP send is handled in RoomView.
@@ -114,13 +117,30 @@ export const useRoomStore = defineStore('room', () => {
     messages.value.push({ type: 'system', text, ts: Date.now() })
   }
 
-  function setGameOver(data: { winners: any[]; leaderboard: any[]; bustedPlayerIds: string[] }) {
+  function setGameOver(data: { winners: any[]; leaderboard: any[]; bustedPlayerIds: string[]; deferred?: boolean }) {
+    if (data.deferred) {
+      // Store pending game over data so HandResult can show "查看最终排名" button.
+      // The 6s auto-broadcast (without deferred flag) will auto-apply if user doesn't click first.
+      pendingGameOver.value = data
+      return
+    }
+    pendingGameOver.value = null
     winners.value = data.winners
     gameOver.value = true
     leaderboard.value = data.leaderboard
     bustedPlayerIds.value = data.bustedPlayerIds
     // Keep current status so the poker table stays visible behind the GameOver overlay.
     // Transition to WAITING happens in handleBackToRoom() when user clicks "返回房间".
+  }
+
+  function showGameOver() {
+    const d = pendingGameOver.value
+    if (!d) return
+    pendingGameOver.value = null
+    winners.value = d.winners
+    gameOver.value = true
+    leaderboard.value = d.leaderboard
+    bustedPlayerIds.value = d.bustedPlayerIds
   }
 
   function reset() {
@@ -138,6 +158,7 @@ export const useRoomStore = defineStore('room', () => {
     smallBlind.value = 10
     bigBlind.value = 20
     maxSeats.value = 8
+    minPlayers.value = 2
     initialChips.value = 1000
     minRaise.value = 20
     dealerIndex.value = 0
@@ -151,14 +172,15 @@ export const useRoomStore = defineStore('room', () => {
     messages.value = []
     readyPlayers.value = []
     isReady.value = false
+    pendingGameOver.value = null
   }
 
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
     currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
-    maxSeats, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
+    maxSeats, minPlayers, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
-    readyPlayers, isReady, allReady, readyCount, activeCount,
-    updateFromSnapshot, addSystemMessage, setGameOver, reset, sendReady, receiveReadyStatus,
+    readyPlayers, isReady, allReady, readyCount, activeCount, pendingGameOver, hasPendingGameOver,
+    updateFromSnapshot, addSystemMessage, setGameOver, showGameOver, reset, sendReady, receiveReadyStatus,
   }
 })

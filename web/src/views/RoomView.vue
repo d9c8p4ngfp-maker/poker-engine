@@ -103,6 +103,9 @@ function subscribeAll() {
             existing.borrowCount = sp.borrowCount || 0
           }
         }
+        if (data.maxSeats) roomStore.maxSeats = data.maxSeats
+        if (isMyTurn.value) startCountdown()
+        else stopCountdown()
         return
       }
       roomStore.roomId = data.roomId
@@ -119,6 +122,7 @@ function subscribeAll() {
       roomStore.smallBlind = data.smallBlind || 10
       roomStore.bigBlind = data.bigBlind || 20
       roomStore.maxSeats = data.maxSeats || 8
+      roomStore.minPlayers = data.minPlayers || 2
       if (data.initialChips) roomStore.initialChips = data.initialChips
     }
   })
@@ -332,6 +336,11 @@ const isSpectating = computed(() => {
   return !!(me && (me as any).inGame === false)
 })
 
+const displayTimeLeft = computed(() => {
+  if (isMyTurn.value) return localCountdown.value
+  return roomStore.timeLeftSec ?? 0
+})
+
 const isAllIn = computed(() => {
   if (roomStore.status !== 'PLAYING') return false
   const me = myPlayer.value
@@ -402,6 +411,7 @@ function startCountdown() {
 }
 function stopCountdown() {
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  localCountdown.value = 0
 }
 
 function handleAction(payload: { type: string; amount?: number }) {
@@ -446,6 +456,7 @@ async function refreshRoom() {
       roomStore.smallBlind = data.smallBlind
       roomStore.bigBlind = data.bigBlind
       roomStore.maxSeats = (data as any).maxSeats || 8
+      roomStore.minPlayers = (data as any).minPlayers || 2
       roomStore.initialChips = (data as any).initialChips || 1000
       if ((data as any).dealerPlayerId != null) {
         roomStore.dealerPlayerId = (data as any).dealerPlayerId
@@ -534,6 +545,10 @@ function handleLeave() {
 
 async function handleBackToRoom() {
   logger.logAction('back_to_lobby', { roomId })
+  // If room was finished via bustEndsGame, tell backend to reset to WAITING
+  if (roomStore.status === 'FINISHED') {
+    send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
+  }
   roomStore.gameOver = false
   roomStore.winners = null
   roomStore.leaderboard = []
@@ -665,7 +680,7 @@ onUnmounted(() => {
             :call-amount="legalActions.callAmount"
             :min-raise="roomStore.minRaise || roomStore.bigBlind"
             :current-bet="roomStore.currentBet"
-            :time-left-sec="localCountdown || roomStore.timeLeftSec"
+            :time-left-sec="displayTimeLeft"
             :my-chips="myPlayer?.chips || 0"
             @action="handleAction"
           />
@@ -680,8 +695,11 @@ onUnmounted(() => {
           :total-active="roomStore.activeCount"
           :all-ready="roomStore.allReady"
           :my-player-id="userStore.playerId"
+          :min-players="roomStore.minPlayers"
+          :has-pending-game-over="roomStore.hasPendingGameOver"
           @next-hand="handleNextHand"
           @ready="handleReady"
+          @show-game-over="roomStore.showGameOver()"
         />
 
         <BustChoice
@@ -927,13 +945,13 @@ onUnmounted(() => {
 .game-phase { font-size:clamp(8px,2vh,11px); color:var(--color-text-light); }
 .game-countdown { font-size:clamp(10px,2.5vh,14px); color:var(--color-gold); }
 .game-countdown.urgent { color:var(--color-accent); animation:pulse 1s infinite; }
-.game-table-area { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(4px,1vh,10px); }
-.game-action-area { padding:clamp(4px,1vh,8px) clamp(6px,1.5vh,12px); padding-bottom:max(clamp(8px,2vh,12px), var(--safe-bottom)); }
+.game-table-area { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(2px,0.5vh,6px); overflow:hidden; }
+.game-action-area { flex-shrink:0; position:relative; z-index:2; padding:clamp(4px,1vh,8px) clamp(6px,1.5vh,12px); padding-bottom:max(clamp(8px,2vh,12px), var(--safe-bottom)); }
 
 /* Modal */
 .room-modal-overlay { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
   background:rgba(0,0,0,0.6); padding:16px; }
-.room-modal { width:100%; max-width:clamp(280px,48vw,480px); background:var(--color-panel-bg);
+.room-modal { width:100%; max-width:clamp(280px,48vw,480px); max-height:85vh; overflow-y:auto; background:var(--color-panel-bg);
   border:2px solid var(--color-button-shadow); border-radius:14px; padding:clamp(12px,3vh,20px); }
 .room-modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:clamp(8px,2vh,12px); }
 .room-modal-title { font-size:clamp(11px,2.7vh,15px); color:var(--color-gold); }

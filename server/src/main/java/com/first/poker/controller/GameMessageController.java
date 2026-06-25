@@ -61,6 +61,15 @@ public class GameMessageController {
             var room = roomService.findRoom(roomId);
             if (room == null) throw new IllegalArgumentException("Room not found: " + roomId);
 
+            // If room is FINISHED (game over via bustEndsGame), just reset to WAITING
+            // so the frontend switches from GameOver back to lobby.
+            if (room.getStatus() == com.first.poker.model.enums.RoomStatus.FINISHED) {
+                log.info("[START-GAME] {} FINISHED → resetting to WAITING", roomId);
+                room.setStatus(com.first.poker.model.enums.RoomStatus.WAITING);
+                broadcast.sendToRoom(roomId, roomToResponse(room));
+                return;
+            }
+
             var state = gameSession.startGame(room, req.getPlayerId());
 
             // Register ALL room players for disconnect tracking
@@ -92,13 +101,30 @@ public class GameMessageController {
     public void handleReady(@DestinationVariable String roomId,
                             @Payload java.util.Map<String, Object> payload) {
         String playerId = (String) payload.get("playerId");
+        log.info("[READY-IN] {} received from player={}", roomId, playerId);
         var room = roomService.findRoom(roomId);
-        if (room == null || room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) return;
+        if (room == null) {
+            log.warn("[READY-REJECT] {} room not found", roomId);
+            return;
+        }
+        // Only allow ready in WAITING status
+        if (room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) {
+            log.warn("[READY-REJECT] {} status={}, only WAITING allowed", roomId, room.getStatus());
+            return;
+        }
+        // Allow ready during SHOWDOWN→WAITING window (endHandFlow window)
+        if (gameSession.hasActiveSession(roomId)) {
+            log.warn("[READY-REJECT] {} game session active, not ready time", roomId);
+            return;
+        }
 
         long activeCount = room.getPlayers().stream()
             .filter(p -> p.getStatus() == com.first.poker.model.enums.PlayerStatus.ACTIVE && p.getChips() > 0)
             .count();
-        if (activeCount < room.getConfig().getMinPlayers()) return;
+        if (activeCount < room.getConfig().getMinPlayers()) {
+            log.warn("[READY-REJECT] {} active={} minPlayers={}", roomId, activeCount, room.getConfig().getMinPlayers());
+            return;
+        }
 
         gameSession.markReady(roomId, playerId);
 
@@ -337,6 +363,7 @@ public class GameMessageController {
         res.put("maxSeats", room.getConfig().getMaxSeats());
         res.put("dealerPlayerId", room.getDealerPlayerId());
         res.put("initialChips", room.getConfig().getInitialChips());
+        res.put("minPlayers", room.getConfig().getMinPlayers());
         return res;
     }
 

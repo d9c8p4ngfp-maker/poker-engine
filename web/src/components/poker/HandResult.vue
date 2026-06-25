@@ -9,15 +9,19 @@ const props = defineProps<{
   totalActive: number
   allReady: boolean
   myPlayerId: string
+  minPlayers: number
+  hasPendingGameOver: boolean
 }>()
 
 const emit = defineEmits<{
   'next-hand': []
   'ready': []
+  'show-game-over': []
 }>()
 
 const amIReady = computed(() => props.readyPlayers.includes(props.myPlayerId))
 const readyCount = computed(() => props.readyPlayers.length)
+const canStart = computed(() => props.totalActive >= props.minPlayers)
 </script>
 
 <template>
@@ -32,44 +36,52 @@ const readyCount = computed(() => props.readyPlayers.length)
         <div class="winner-amount">+{{ w.amount }}</div>
       </div>
 
-      <div class="ready-divider"></div>
+      <template v-if="hasPendingGameOver || !canStart">
+        <div class="result-outro">本局最终结算</div>
+        <button class="result-btn result-next-btn" @click="$emit('show-game-over')">
+          查看最终排名
+        </button>
+      </template>
+      <template v-else>
+        <div class="ready-divider"></div>
 
-      <!-- Ready panel -->
-      <div class="ready-panel">
-        <div class="ready-title">准备状态 ({{ readyCount }}/{{ totalActive }})</div>
-        <div class="ready-grid">
-          <div
-            v-for="p in players"
-            :key="p.playerId"
-            class="ready-player"
-            :class="{ 'is-ready': readyPlayers.includes(p.playerId) }"
-          >
-            <span class="ready-icon">{{ readyPlayers.includes(p.playerId) ? '✅' : '⏳' }}</span>
-            <span class="ready-name">{{ p.nickname }}</span>
+        <!-- Ready panel -->
+        <div class="ready-panel">
+          <div class="ready-title">准备状态 ({{ readyCount }}/{{ totalActive }})</div>
+          <div class="ready-grid">
+            <div
+              v-for="p in players"
+              :key="p.playerId"
+              class="ready-player"
+              :class="{ 'is-ready': readyPlayers.includes(p.playerId) }"
+            >
+              <span class="ready-icon">{{ readyPlayers.includes(p.playerId) ? '✅' : '⏳' }}</span>
+              <span class="ready-name">{{ p.nickname }}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Action buttons -->
-      <button
-        v-if="isOwner"
-        class="result-btn"
-        :class="{ 'btn-disabled': !allReady }"
-        :disabled="!allReady"
-        @click="$emit('next-hand')"
-      >
-        {{ allReady ? '下一局' : `等待准备 (${readyCount}/${totalActive})` }}
-      </button>
-      <button
-        v-else-if="!amIReady"
-        class="result-btn ready-btn"
-        @click="$emit('ready')"
-      >
-        准备
-      </button>
-      <div v-else class="result-wait">
-        ✅ 已准备 — 等待房主开始...
-      </div>
+        <!-- Action buttons -->
+        <button
+          v-if="!amIReady"
+          class="result-btn ready-btn"
+          @click="$emit('ready')"
+        >
+          准备
+        </button>
+        <div v-else class="result-wait">
+          ✅ 已准备 — 等待房主开始...
+        </div>
+        <button
+          v-if="isOwner"
+          class="result-btn"
+          :class="{ 'btn-disabled': !allReady }"
+          :disabled="!allReady"
+          @click="$emit('next-hand')"
+        >
+          {{ allReady ? '下一局' : `等待准备 (${readyCount}/${totalActive})` }}
+        </button>
+      </template>
     </div>
   </div>
 </template>
@@ -173,5 +185,10 @@ const readyCount = computed(() => props.readyPlayers.length)
   font-size: clamp(7px, 1.8vh, 10px);
   color: var(--color-text-muted); margin-top: 12px;
   padding: 8px 0;
+}
+.result-cant-start {
+  font-size: clamp(8px, 2vh, 11px);
+  color: #ff9800; margin-top: 16px;
+  padding: 12px 0;
 }
 </style>

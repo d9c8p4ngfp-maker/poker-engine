@@ -163,6 +163,9 @@ const dealerPosition = computed(() => {
   50% { transform: scale(1.2); }
   100% { transform: scale(1); }
 }
+@media (orientation: landscape) {
+  .table { max-width: min(85vw, 960px); }
+}
 @media (orientation: portrait) {
   .table { aspect-ratio: 4/3; }
 }

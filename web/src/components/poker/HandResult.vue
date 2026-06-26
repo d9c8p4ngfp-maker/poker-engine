@@ -82,7 +82,7 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
           准备
         </button>
         <div v-else class="result-wait">
-          ✅ 已准备 — 等待房主开始...
+          ✅ 已准备 — {{ isOwner ? '等待其他玩家准备...' : '等待房主开始...' }}
         </div>
         <button
           v-if="isOwner"

@@ -66,7 +66,6 @@ export const useRoomStore = defineStore('room', () => {
   const bustedPlayerIds = ref<string[]>([])
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
   const readyPlayers = ref<string[]>([])
-  const isReady = ref(false)
   const pendingGameOver = ref<{ winners: any[]; leaderboard: any[]; bustedPlayerIds: string[] } | null>(null)
 
   const activeCount = computed(() => players.value.filter(p => p.chips > 0).length)
@@ -74,10 +73,6 @@ export const useRoomStore = defineStore('room', () => {
   const allReady = computed(() => activeCount.value > 0 && readyCount.value >= activeCount.value)
   const hasPendingGameOver = computed(() => pendingGameOver.value !== null)
 
-  function sendReady() {
-    // Optimistic local flag. Actual STOMP send is handled in RoomView.
-    isReady.value = true
-  }
 
   function receiveReadyStatus(data: { readyPlayers: string[]; totalActive: number; allReady: boolean }) {
     readyPlayers.value = data.readyPlayers || []
@@ -171,7 +166,6 @@ export const useRoomStore = defineStore('room', () => {
     bustedPlayerIds.value = []
     messages.value = []
     readyPlayers.value = []
-    isReady.value = false
     pendingGameOver.value = null
   }
 
@@ -180,7 +174,7 @@ export const useRoomStore = defineStore('room', () => {
     currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
     maxSeats, minPlayers, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
-    readyPlayers, isReady, allReady, readyCount, activeCount, pendingGameOver, hasPendingGameOver,
-    updateFromSnapshot, addSystemMessage, setGameOver, showGameOver, reset, sendReady, receiveReadyStatus,
+    readyPlayers, allReady, readyCount, activeCount, pendingGameOver, hasPendingGameOver,
+    updateFromSnapshot, addSystemMessage, setGameOver, showGameOver, reset, receiveReadyStatus,
   }
 })

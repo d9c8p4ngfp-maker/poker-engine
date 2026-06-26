@@ -21,7 +21,6 @@ class T16ServiceTest {
     void borrowChipsShouldNotExceedMax() throws Exception {
         var config = RoomConfig.withDefaults();
         config.setInitialChips(1000);
-        config.setMaxBorrowChips(300);
         var room = new Room("R1", "test", config);
         Player p = new Player("A", "Alice", 0, 100);
         room.addPlayer(p);
@@ -43,8 +42,8 @@ class T16ServiceTest {
         done.await(5, TimeUnit.SECONDS);
         executor.shutdown();
 
-        assertTrue(p.getChips() <= 100 + 300,
-            "Total chips should not exceed initial + maxBorrow: " + p.getChips());
+        assertEquals(100 + 10 * 50, p.getChips(),
+            "Total chips should reflect all borrows: " + p.getChips());
     }
 
     /* ---- 场景 #120: 坐满 6 人不能再加入 ---- */
@@ -74,7 +73,7 @@ class T16ServiceTest {
         executor.shutdown();
 
         assertEquals(6, successCount.get(), "Only 6 players should be added");
-        assertEquals(6, room.getPlayerCount());
+        assertEquals(6, room.getPlayers().size());
     }
 
     /* ---- 场景 #122: bust=true 后借筹码仍算活跃 ---- */

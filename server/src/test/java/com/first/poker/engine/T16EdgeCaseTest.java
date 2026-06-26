@@ -198,15 +198,16 @@ class T16EdgeCaseTest {
 
     @Test
     void headsUpWithExtremeChipLead_GameShouldContinue() {
-        // 2人对局，一方 10K 筹码，一方 50 筹码
+        // 2人对局，一方 10K 筹码，一方 15 筹码（小于大盲注 20）
         var players = List.of(
             new GamePlayerState("rich", "Rich", 0, 10000, 0, 0, false, false, List.of()),
-            new GamePlayerState("poor", "Poor", 0, 50, 0, 0, false, false, List.of())
+            new GamePlayerState("poor", "Poor", 0, 15, 0, 0, false, false, List.of())
         );
         long active = players.stream().filter(p -> p.chips() > 0).count();
         assertEquals(2, active, "Both players should be active");
-        // 最小玩家筹码小于大盲注，发牌时应 All-in
-        assertTrue(players.get(1).chips() < 20, "Poor player has less than big blind");
+        // 最小玩家筹码 > 0 但只有 15（小于大盲注 20）→ 发牌时应 All-in
+        assertTrue(players.get(1).chips() > 0, "Poor player still has chips");
+        assertTrue(players.get(1).chips() < 20, "But has less than big blind (20)");
     }
 
     /* ---- 场景 #124: 同一玩家同一操作不能发送两次 ---- */

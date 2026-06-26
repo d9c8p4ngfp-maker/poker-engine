@@ -427,7 +427,10 @@ function handleAction(payload: { type: string; amount?: number }) {
 function handleNextHand() {
   if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
   logger.logAction('next_hand', { roomId })
-  console.log('[RoomView] handleNextHand: sending start to', roomId, 'playerId:', userStore.playerId)
+  // 如果房主还没准备，先自动准备
+  if (!roomStore.readyPlayers.includes(userStore.playerId)) {
+    send(`/app/game/${roomId}/ready`, { playerId: userStore.playerId })
+  }
   send(`/app/game/${roomId}/start`, { playerId: userStore.playerId })
 }
 

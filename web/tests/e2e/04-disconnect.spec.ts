@@ -16,8 +16,7 @@ test.describe('断线恢复', () => {
     const gameUrl = page.url();
     await ctx.close();
 
-    // 5 秒后重连
-    await page.waitForTimeout(5000);
+    // 重连
     const ctx2 = await browser.newContext();
     const page2 = await ctx2.newPage();
     await page2.goto(gameUrl);

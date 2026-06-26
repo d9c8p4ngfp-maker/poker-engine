@@ -25,7 +25,7 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
 </script>
 
 <template>
-  <div class="result-overlay">
+  <div class="result-overlay" data-test="hand-result">
     <div class="result-modal">
       <div class="result-trophy">🏆</div>
       <div class="result-title">结果</div>
@@ -38,7 +38,7 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
 
       <template v-if="hasPendingGameOver">
         <div class="result-outro">本局最终结算</div>
-        <button class="result-btn result-next-btn" @click="$emit('show-game-over')">
+        <button class="result-btn result-next-btn" data-test="btn-show-ranking" @click="$emit('show-game-over')">
           查看最终排名
         </button>
       </template>
@@ -77,6 +77,7 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
         <button
           v-if="!amIReady"
           class="result-btn ready-btn"
+          data-test="btn-ready"
           @click="$emit('ready')"
         >
           准备
@@ -87,6 +88,7 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
         <button
           v-if="isOwner"
           class="result-btn"
+          data-test="btn-next-hand"
           :class="{ 'btn-disabled': !allReady }"
           :disabled="!allReady"
           @click="$emit('next-hand')"

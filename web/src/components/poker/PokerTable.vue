@@ -97,7 +97,7 @@ const dealerPosition = computed(() => {
 </script>
 
 <template>
-  <div class="table" style="image-rendering:pixelated;">
+  <div class="table" data-test="poker-table" style="image-rendering:pixelated;">
     <DealAnimation
       v-if="isDealing"
       :player-positions="playerPositions"
@@ -113,7 +113,7 @@ const dealerPosition = computed(() => {
         :is-current-player="p.playerId === props.currentPlayerId"
         :is-me="p.playerId === myPlayerId" :showdown="showdown" />
     </div>
-    <div class="center">
+    <div class="center" data-test="community-cards">
       <div class="cards-row">
         <div v-for="(c, i) in slots" :key="i" class="card-slot" :class="{ active: c }">
           <PlayingCard v-if="c" :card="c" :face-up="true" size="md" />

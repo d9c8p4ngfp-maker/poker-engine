@@ -637,7 +637,7 @@ onUnmounted(() => {
 
     <div v-if="joined" class="room-content">
       <!-- PLAYING / FINISHED: Full-screen table overlay -->
-      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED'" class="room-game-view">
+      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED'" class="room-game-view" data-test="game-view">
         <!-- Top info bar -->
         <div class="game-top-bar">
           <div class="game-room-info">
@@ -719,7 +719,7 @@ onUnmounted(() => {
       </div>
 
       <!-- WAITING: Left-column lobby -->
-      <div v-else class="room-waiting-view">
+      <div v-else class="room-waiting-view" data-test="room-waiting-view">
         <div class="room-overlay"></div>
         <div class="room-left-col">
           <!-- Header -->
@@ -782,6 +782,7 @@ onUnmounted(() => {
           <button
             v-if="(roomStore.players?.length || 0) < roomStore.maxSeats"
             class="room-btn room-btn-secondary"
+            data-test="btn-add-bot"
             @click="handleAddBot"
             :disabled="addingBot"
           >
@@ -802,6 +803,7 @@ onUnmounted(() => {
           <button
             v-if="isOwner && canStart"
             class="room-btn room-btn-primary"
+            data-test="btn-start-game"
             @click="handleStartGame"
           >
             开始游戏

@@ -17,7 +17,7 @@ function getMedal(index: number) {
 </script>
 
 <template>
-  <div class="gameover-overlay">
+  <div class="gameover-overlay" data-test="game-over">
     <div class="gameover-modal">
       <div class="gameover-trophy">🏆</div>
       <div class="gameover-title">比赛结束</div>
@@ -48,7 +48,7 @@ function getMedal(index: number) {
         </span>
       </div>
 
-      <button class="gameover-btn" @click="$emit('back-to-lobby')">
+      <button class="gameover-btn" data-test="btn-back-lobby" @click="$emit('back-to-lobby')">
         返回房间
       </button>
     </div>

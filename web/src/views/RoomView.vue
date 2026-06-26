@@ -93,7 +93,7 @@ function subscribeAll() {
       roomStore.addSystemMessage(data.text)
     } else if (data.roomId) {
       console.log('[RoomView] ROOM-MSG status:', data.status, 'prevStatus:', roomStore.status)
-      if (roomStore.status === 'PLAYING' && !roomStore.winners && !roomStore.gameOver) {
+      if (roomStore.status === 'PLAYING' && !roomStore.gameOver) {
         console.log('[RoomView] ROOM-MSG skipped full overwrite (game in progress), partial sync only')
         for (const sp of (data.players || [])) {
           const existing = roomStore.players.find((p: any) => p.playerId === sp.playerId)

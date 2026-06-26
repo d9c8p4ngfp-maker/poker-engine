@@ -500,67 +500,6 @@ public class GameBroadcastHelper {
     }
 
     /**
-     * Auto-start the next hand when the game should continue (no game-over condition met).
-     * Called after endGame() has torn down the previous session and chips have been synced.
-     */
-    public void continueHand(String roomId) {
-        var room = roomService.findRoom(roomId);
-        if (room == null) return;
-
-        // Count active players with chips
-        long withChips = room.getPlayers().stream()
-            .filter(p -> p.getStatus() != PlayerStatus.LEFT)
-            .filter(p -> p.getChips() > 0)
-            .count();
-
-        if (withChips < 2) {
-            log.info("[CONTINUE-HAND] {} only {} players with chips, cannot continue", roomId, withChips);
-            return;
-        }
-
-        log.info("[CONTINUE-HAND] {} auto-starting next hand, playersWithChips={}", roomId, withChips);
-
-        String ownerId = room.getOwner() != null ? room.getOwner().getPlayerId() : null;
-        if (ownerId == null) {
-            log.warn("[CONTINUE-HAND] {} no owner, cannot start", roomId);
-            return;
-        }
-
-        try {
-            var state = gameSession.startGame(room, ownerId);
-            autoPlayBots(roomId);
-            var initState = gameSession.getState(roomId);
-            if (initState != null) {
-                broadcastGameState(roomId, initState);
-                scheduleNextTimeout(roomId, initState);
-            }
-            // Broadcast room status update (still PLAYING) so clients know the hand started
-            var roomPayload = new HashMap<String, Object>();
-            roomPayload.put("roomId", room.getRoomId());
-            roomPayload.put("name", room.getName());
-            roomPayload.put("status", room.getStatus().name());
-            roomPayload.put("players", room.getPlayers().stream().map(p -> {
-                var pm = new HashMap<String, Object>();
-                pm.put("playerId", p.getPlayerId());
-                pm.put("nickname", p.getNickname());
-                pm.put("seatIndex", p.getSeatIndex());
-                pm.put("chips", p.getChips());
-                pm.put("borrowCount", p.getBorrowCount());
-                pm.put("connected", p.isConnected());
-                pm.put("owner", p.isOwner());
-                return pm;
-            }).toList());
-            roomPayload.put("smallBlind", room.getConfig().getSmallBlind());
-            roomPayload.put("bigBlind", room.getConfig().getBigBlind());
-            roomPayload.put("maxSeats", room.getConfig().getMaxSeats());
-            roomPayload.put("initialChips", room.getConfig().getInitialChips());
-            broadcast.sendToRoom(roomId, roomPayload);
-            log.info("[CONTINUE-HAND] {} next hand started, {} players", roomId, state.players().size());
-        } catch (Exception e) {
-            log.error("[CONTINUE-HAND-ERROR] {} {}", roomId, e.getMessage(), e);
-        }
-    }
-
     /**
      * Cancel and remove the ready timeout for a room.
      * Must be called when a room is dissolved to prevent resource leaks.

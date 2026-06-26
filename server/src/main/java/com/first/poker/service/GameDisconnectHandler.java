@@ -138,8 +138,6 @@ public class GameDisconnectHandler {
         broadcast.sendToRoom(fRoomId, dcPayload);
 
         if (fr != null) {
-            broadcastHelper.broadcastGameState(fRoomId, fr.state());
-
             if (fr.handComplete()) {
                 // handComplete involves Room state mutation — must run under lock
                 gameSession.executeWithLock(fRoomId, () -> {
@@ -147,7 +145,8 @@ public class GameDisconnectHandler {
                     broadcastHelper.endHandFlow(fRoomId, fr);
                 });
             } else {
-                // Hand not complete — let autoPlayBots continue
+                // Hand not complete — broadcast state, then let autoPlayBots continue
+                broadcastHelper.broadcastGameState(fRoomId, fr.state());
                 broadcastHelper.autoPlayBots(fRoomId);
                 var state = gameSession.getState(fRoomId);
                 if (state != null) broadcastHelper.scheduleNextTimeout(fRoomId, state);

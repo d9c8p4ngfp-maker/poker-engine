@@ -90,7 +90,6 @@ public class GameMessageController {
             log.info("[START-GAME] {} broadcast room status={}", roomId, room.getStatus().name());
         } catch (Throwable e) {
             log.error("[START-GAME-ERROR] {}: {} - {}", roomId, e.getClass().getName(), e.getMessage(), e);
-            e.printStackTrace(System.err);
             var errorPayload = new java.util.HashMap<String, Object>();
             errorPayload.put("error", "无法开始游戏: " + e.getMessage());
             broadcast.sendToPlayer(req.getPlayerId(), errorPayload);

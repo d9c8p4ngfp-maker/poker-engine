@@ -21,7 +21,7 @@ const p = defineProps<{
     <div v-if="isDealer" class="dealer">D</div>
     <div class="cards">
       <template v-if="holeCards">
-        <PlayingCard v-for="(c,i) in holeCards" :key="i" :card="c" :face-up="isMe||showdown" size="sm" />
+        <PlayingCard v-for="(c,i) in holeCards" :key="i" :card="c" :face-up="isMe||showdown" :size="isMe ? 'md' : 'sm'" />
       </template>
     </div>
     <span class="nick" :class="{ 'me': isMe }">{{ nickname }}</span>

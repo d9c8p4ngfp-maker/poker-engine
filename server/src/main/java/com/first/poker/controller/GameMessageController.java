@@ -281,6 +281,7 @@ public class GameMessageController {
                     dissolvePayload.put("roomId", roomId);
                     gameSession.endGameAndCleanupLock(roomId, null);
                     gameSession.clearReady(roomId);
+                    helper.cancelReadyTimeout(roomId);
                     registry.removeRoom(roomId);
                     broadcast.sendToRoom(roomId, dissolvePayload);
                     return;
@@ -337,6 +338,7 @@ public class GameMessageController {
             dissolvePayload.put("roomId", roomId);
             gameSession.endGameAndCleanupLock(roomId, null);
             gameSession.clearReady(roomId);
+            helper.cancelReadyTimeout(roomId);
             registry.removeRoom(roomId);
             broadcast.sendToRoom(roomId, dissolvePayload);
         });

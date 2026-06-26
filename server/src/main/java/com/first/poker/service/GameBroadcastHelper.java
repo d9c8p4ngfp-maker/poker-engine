@@ -562,6 +562,18 @@ public class GameBroadcastHelper {
     }
 
     /**
+     * Cancel and remove the ready timeout for a room.
+     * Must be called when a room is dissolved to prevent resource leaks.
+     */
+    public void cancelReadyTimeout(String roomId) {
+        var timeout = readyTimeouts.remove(roomId);
+        if (timeout != null) {
+            timeout.cancel(false);
+            log.info("[READY-TIMEOUT] {} cancelled", roomId);
+        }
+    }
+
+    /**
      * Check if should auto-continue. Called after handleReady and auto-ready timeout.
      */
     public void tryAutoContinue(String roomId) {

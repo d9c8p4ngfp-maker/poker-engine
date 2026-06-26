@@ -10,6 +10,7 @@ public class GameStateSnapshot {
 
     public static Map<String, Object> buildPublic(GameState state, Room room) {
         Map<String, Object> map = new LinkedHashMap<>();
+        map.put("status", "PLAYING");
         map.put("phase", phaseString(state.phase()));
         map.put("bettingRound", phaseString(state.phase()));
         map.put("communityCards", state.communityCards().stream().map(Card::toString).toList());

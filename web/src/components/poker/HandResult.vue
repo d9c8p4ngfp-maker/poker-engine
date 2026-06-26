@@ -36,10 +36,22 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
         <div class="winner-amount">+{{ w.amount }}</div>
       </div>
 
-      <template v-if="hasPendingGameOver || !canStart">
+      <template v-if="hasPendingGameOver">
         <div class="result-outro">本局最终结算</div>
         <button class="result-btn result-next-btn" @click="$emit('show-game-over')">
           查看最终排名
+        </button>
+      </template>
+      <template v-else-if="!canStart">
+        <div class="result-wait-players">
+          ⏳ 等待破产玩家借筹码加入...
+        </div>
+        <button
+          v-if="isOwner"
+          class="result-btn"
+          disabled
+        >
+          人数不足，无法开始
         </button>
       </template>
       <template v-else>
@@ -185,6 +197,11 @@ const canStart = computed(() => props.totalActive >= props.minPlayers)
   font-size: clamp(7px, 1.8vh, 10px);
   color: var(--color-text-muted); margin-top: 12px;
   padding: 8px 0;
+}
+.result-wait-players {
+  font-size: clamp(8px, 2vh, 11px);
+  color: #ff9800;
+  padding: 12px 0;
 }
 .result-cant-start {
   font-size: clamp(8px, 2vh, 11px);

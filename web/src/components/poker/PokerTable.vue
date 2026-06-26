@@ -130,14 +130,15 @@ const dealerPosition = computed(() => {
   max-width: min(92vw, 960px);
   aspect-ratio: 16/9;
   max-height: 100%;
-  overflow: hidden; border-radius: 12px;
+  overflow: visible;
 }
 .felt {
   position: absolute; inset: 0;
   background: rgba(64, 144, 72, 0.08);
   border-radius: 12px;
+  overflow: hidden;
 }
-.seat-wrap { position: absolute; }
+.seat-wrap { position: absolute; z-index: 1; }
 .center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; pointer-events: none;

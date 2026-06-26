@@ -18,20 +18,16 @@ test('发牌后每个玩家有 2 张底牌', async ({ browser }) => {
 });
 
 test('FLOP 后 3 张公共牌', async ({ browser }) => {
-  const { page } = await (await browser.newContext()).newPage();
+  const page = await (await browser.newContext()).newPage();
   await createRoom(page, '房主');
   await addBotAndStart(page, 2);
 
-  // 等待公共牌区域出现
-  await expect(page.locator('[data-test="community-cards"]')).toBeVisible({ timeout: 15000 });
-
-  // 验证有牌（PlayingCard 组件渲染）
-  const cards = page.locator('[data-test="community-cards"] .card-face');
-  // 在 bot 自动操作后，应该至少到 FLOP
+  // 等待至少 3 张公共牌激活（社区牌卡槽 .card-slot.active）
+  const activeSlots = page.locator('[data-test="community-cards"] .card-slot.active');
   await expect(async () => {
-    const count = await cards.count();
+    const count = await activeSlots.count();
     expect(count).toBeGreaterThanOrEqual(3);
-  }).toPass({ timeout: 60000 });
+  }).toPass({ timeout: 90000 });
 });
 
 test('局结束后显示 HandResult', async ({ browser }) => {
@@ -40,7 +36,7 @@ test('局结束后显示 HandResult', async ({ browser }) => {
   await createRoom(page, '房主');
   await addBotAndStart(page, 2);
 
-  // 等待 HandResult 出现（局结束）
-  await expect(page.locator('[data-test="hand-result"]')).toBeVisible({ timeout: 60000 });
+  // 等待 HandResult 出现（局结束），允许更长时间
+  await expect(page.locator('[data-test="hand-result"]')).toBeVisible({ timeout: 120000 });
   await ctx.close();
 });

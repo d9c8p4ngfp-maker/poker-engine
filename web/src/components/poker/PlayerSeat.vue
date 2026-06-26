@@ -33,8 +33,10 @@ const p = defineProps<{
 </template>
 <style scoped>
 .seat {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: clamp(4px, 1vh, 8px); border-radius: 8px;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: clamp(2px, 0.6vh, 6px) clamp(4px, 1vw, 8px);
+  border-radius: 8px;
   border: 2px solid transparent; transition: all 0.15s;
   background: var(--color-panel-bg);
 }
@@ -56,10 +58,13 @@ const p = defineProps<{
   content: ' 👀'; font-size: 0.7em;
 }
 .dealer {
+  position: absolute; top: -6px; right: -6px;
   font-family: 'Press Start 2P', monospace;
-  font-size: clamp(7px, 1.8vh, 10px);
-  padding: 1px 5px; border-radius: 999px;
+  font-size: clamp(6px, 1.4vh, 8px);
+  width: 16px; height: 16px; line-height: 16px; text-align: center;
+  border-radius: 50%;
   font-weight: bold; background: #f0c040; color: #382818;
+  z-index: 2;
 }
 .cards { display: flex; gap: 1px; }
 .nick {

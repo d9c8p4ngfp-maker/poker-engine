@@ -165,7 +165,11 @@ const dealerPosition = computed(() => {
   100% { transform: scale(1); }
 }
 @media (orientation: landscape) {
-  .table { max-width: min(85vw, 960px); }
+  .table { max-width: min(72vw, 780px); }
+  .card-slot {
+    width: clamp(20px, 4.5vw, 40px);
+    height: clamp(28px, 6.5vw, 56px);
+  }
 }
 @media (orientation: portrait) {
   .table { aspect-ratio: 4/3; }

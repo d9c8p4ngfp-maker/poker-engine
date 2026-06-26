@@ -945,7 +945,7 @@ onUnmounted(() => {
 .game-phase { font-size:clamp(8px,2vh,11px); color:var(--color-text-light); }
 .game-countdown { font-size:clamp(10px,2.5vh,14px); color:var(--color-gold); }
 .game-countdown.urgent { color:var(--color-accent); animation:pulse 1s infinite; }
-.game-table-area { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(2px,0.5vh,6px); overflow:hidden; }
+.game-table-area { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(2px,0.5vh,6px); overflow:visible; }
 .game-action-area { flex-shrink:0; position:relative; z-index:2; padding:clamp(4px,1vh,8px) clamp(6px,1.5vh,12px); padding-bottom:max(clamp(8px,2vh,12px), var(--safe-bottom)); }
 
 /* Modal */

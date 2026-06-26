@@ -485,6 +485,11 @@ async function refreshRoom() {
           inGame: (p as any).inGame,
         }))
       }
+      // 如果当前有 winners 但 refreshRoom 把 status 改成了 WAITING，恢复为 PLAYING
+      // 这样准备阶段刷新页面不会跳回大厅
+      if (roomStore.winners && roomStore.status === 'WAITING') {
+        roomStore.status = 'PLAYING'
+      }
     } else {
       roomStore.roomId = ''
     }

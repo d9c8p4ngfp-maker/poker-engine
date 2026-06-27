@@ -81,6 +81,7 @@ public class RoomController {
         res.put("bigBlind", room.getConfig().getBigBlind());
         res.put("maxSeats", room.getConfig().getMaxSeats());
         res.put("dealerPlayerId", room.getDealerPlayerId());
+        res.put("minPlayers", room.getConfig().getMinPlayers());
         res.put("initialChips", room.getConfig().getInitialChips());
         return res;
     }
@@ -97,6 +98,18 @@ public class RoomController {
             )).toList(),
             "playerCount", roomService.findRoom(roomId).getPlayers().size()
         ));
+    }
+
+    @DeleteMapping("/{roomId}/bots/{botPlayerId}")
+    public ResponseEntity<?> removeBot(@PathVariable String roomId, @PathVariable String botPlayerId) {
+        var room = roomService.findRoom(roomId);
+        if (room == null) return ResponseEntity.notFound().build();
+        boolean removed = roomService.removeBot(roomId, botPlayerId);
+        if (!removed) {
+            return ResponseEntity.badRequest().body(Map.of("error", "移除失败"));
+        }
+        broadcastService.sendToRoom(roomId, roomToResponse(room));
+        return ResponseEntity.ok(Map.of("roomId", roomId, "removed", botPlayerId, "playerCount", room.getPlayers().size()));
     }
 
     @PostMapping("/{roomId}/start")
@@ -153,7 +166,7 @@ public class RoomController {
         // Broadcast outside lock (broadcast is thread-safe)
         var room = roomService.findRoom(roomId);
         if (room == null) return ResponseEntity.notFound().build();
-        broadcastService.sendToRoom(roomId, "room", roomToResponse(room));
+        broadcastService.sendToRoom(roomId, roomToResponse(room));
         var p = room.getPlayers().stream().filter(pl -> pl.getPlayerId().equals(playerId)).findFirst().orElse(null);
         return ResponseEntity.ok(Map.of("playerId", playerId,
             "chips", p != null ? p.getChips() : 0,

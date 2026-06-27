@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import PlayerSeat from './PlayerSeat.vue'
 import PlayingCard from './PlayingCard.vue'
+import ChipAnimation from './ChipAnimation.vue'
+import DealAnimation from './DealAnimation.vue'
 
 interface SeatPlayer {
   playerId:string; nickname:string; chips:number; betInRound:number
@@ -15,14 +17,14 @@ const props = defineProps<{
 }>()
 
 const ALL_SEATS:{x:number;y:number}[] = [
-  { x: 28, y: 18 },  // 0: 上左
-  { x: 50, y: 14 },  // 1: 上中
-  { x: 72, y: 18 },  // 2: 上右
-  { x: 15, y: 48 },  // 3: 左中
-  { x: 85, y: 48 },  // 4: 右中
-  { x: 28, y: 82 },  // 5: 下左
-  { x: 50, y: 86 },  // 6: 下中
-  { x: 72, y: 82 },  // 7: 下右
+  { x: 28, y: 24 },  // 0: 上左
+  { x: 50, y: 20 },  // 1: 上中
+  { x: 72, y: 24 },  // 2: 上右
+  { x: 15, y: 50 },  // 3: 左中
+  { x: 85, y: 50 },  // 4: 右中
+  { x: 28, y: 76 },  // 5: 下左
+  { x: 50, y: 80 },  // 6: 下中
+  { x: 72, y: 76 },  // 7: 下右
 ]
 
 const BOTTOM_CENTER = 6
@@ -45,10 +47,65 @@ const slots = computed(() => {
   props.communityCards.forEach((c, i) => { if (i < 5) s[i] = c })
   return s
 })
+
+const isDealing = ref(false)
+const chipAnimations = ref<{ id: string; fromX: number; fromY: number; toX: number; toY: number; amount: number; delay: number }[]>([])
+let animIdCounter = 0
+
+function getSeatCenter(seatIndex: number): { x: number; y: number } {
+  const pos = ALL_SEATS[seatIndex % ALL_SEATS.length]
+  return { x: (pos.x / 100) * 960, y: (pos.y / 100) * 400 }
+}
+
+// Chip fly on pot increase
+watch(() => props.pot, (newPot, oldPot) => {
+  if (newPot > oldPot && props.currentPlayerId) {
+    const player = sorted.value.find(s => s.playerId === props.currentPlayerId)
+    if (player) {
+      const from = getSeatCenter(player.seatIndex)
+      chipAnimations.value = [{
+        id: 'chip-' + (++animIdCounter),
+        fromX: from.x, fromY: from.y,
+        toX: 480, toY: 200,
+        amount: newPot - oldPot,
+        delay: 0
+      }]
+    }
+  }
+})
+
+// Detect new hand → trigger deal animation
+watch(() => props.currentPlayerIndex, (newVal, oldVal) => {
+  if (newVal !== -1 && oldVal === -1) {
+    isDealing.value = true
+  }
+})
+
+const playerPositions = computed(() =>
+  sorted.value.map(s => ({
+    playerId: s.playerId,
+    x: (s.pos.x / 100) * 960,
+    y: (s.pos.y / 100) * 400,
+  }))
+)
+
+const dealerPosition = computed(() => {
+  const dp = sorted.value.find(s => s.playerId === props.dealerPlayerId)
+  const pos = dp ? ALL_SEATS[dp.seatIndex % ALL_SEATS.length] : ALL_SEATS[0]
+  return { x: (pos.x / 100) * 960, y: (pos.y / 100) * 400 }
+})
 </script>
 
 <template>
-  <div class="table" style="image-rendering:pixelated;">
+  <div class="table" data-test="poker-table" style="image-rendering:pixelated;">
+    <DealAnimation
+      v-if="isDealing"
+      :player-positions="playerPositions"
+      :dealer-position="dealerPosition"
+      :card-count="2"
+      @complete="isDealing = false"
+    />
+    <ChipAnimation :animations="chipAnimations" />
     <div class="felt"></div>
     <div v-for="p in sorted" :key="p.playerId" class="seat-wrap"
       :style="{ left: p.pos.x + '%', top: p.pos.y + '%', transform: 'translate(-50%,-50%)' }">
@@ -56,7 +113,7 @@ const slots = computed(() => {
         :is-current-player="p.playerId === props.currentPlayerId"
         :is-me="p.playerId === myPlayerId" :showdown="showdown" />
     </div>
-    <div class="center">
+    <div class="center" data-test="community-cards">
       <div class="cards-row">
         <div v-for="(c, i) in slots" :key="i" class="card-slot" :class="{ active: c }">
           <PlayingCard v-if="c" :card="c" :face-up="true" size="md" />
@@ -73,14 +130,15 @@ const slots = computed(() => {
   max-width: min(92vw, 960px);
   aspect-ratio: 16/9;
   max-height: 100%;
-  overflow: hidden; border-radius: 12px;
+  overflow: visible;
 }
 .felt {
   position: absolute; inset: 0;
   background: rgba(64, 144, 72, 0.08);
   border-radius: 12px;
+  overflow: hidden;
 }
-.seat-wrap { position: absolute; }
+.seat-wrap { position: absolute; z-index: 1; }
 .center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; pointer-events: none;
@@ -105,6 +163,13 @@ const slots = computed(() => {
   0% { transform: scale(1); }
   50% { transform: scale(1.2); }
   100% { transform: scale(1); }
+}
+@media (orientation: landscape) {
+  .table { max-width: min(72vw, 780px); }
+  .card-slot {
+    width: clamp(20px, 4.5vw, 40px);
+    height: clamp(28px, 6.5vw, 56px);
+  }
 }
 @media (orientation: portrait) {
   .table { aspect-ratio: 4/3; }

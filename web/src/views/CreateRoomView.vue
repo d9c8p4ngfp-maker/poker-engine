@@ -11,7 +11,7 @@ const userStore = useUserStore()
 const name = ref(userStore.nickname + '的牌局')
 const maxSeats = ref(8); const minPlayers = ref(2); const smallBlind = ref(10)
 const initialChips = ref(1000); const actionTimeout = ref(30)
-const bustEndsGame = ref(true); const password = ref(''); const showPassword = ref(false)
+const bustEndsGame = ref(true); const autoContinue = ref(false); const password = ref(''); const showPassword = ref(false)
 const bonus27Enabled = ref(false); const bonus27Amount = ref(0)
 const bonusSFEnabled = ref(false); const bonusSFAmount = ref(0)
 const bonusRoyalFlushDouble = ref(true)
@@ -32,7 +32,7 @@ async function handleCreate() {
         password: showPassword.value ? password.value : null,
         maxSeats: maxSeats.value, minPlayers: minPlayers.value,
         smallBlind: smallBlind.value, initialChips: initialChips.value,
-        actionTimeoutSec: actionTimeout.value, bustEndsGame: bustEndsGame.value,
+        actionTimeoutSec: actionTimeout.value, bustEndsGame: bustEndsGame.value, autoContinue: autoContinue.value,
         bonus27Enabled: bonus27Enabled.value, bonus27Amount: bonus27Amount.value,
         bonusStraightFlushEnabled: bonusSFEnabled.value, bonusStraightFlushAmount: bonusSFAmount.value,
         bonusRoyalFlushDouble: bonusRoyalFlushDouble.value,
@@ -63,6 +63,7 @@ async function handleCreate() {
         <StepperControl v-model="actionTimeout" :min="10" :max="120" :step="5" label="超时(秒)" />
       </div>
       <label class="check"><input v-model="bustEndsGame" type="checkbox" /> 淘汰出局：有人输光则比赛结束</label>
+      <label class="check"><input v-model="autoContinue" type="checkbox" /> 自动续局：所有人准备后自动开始</label>
       <div class="bonus-section">
         <div class="bonus-title">🎲 彩蛋规则</div>
         <div class="bonus-row">
@@ -89,7 +90,7 @@ async function handleCreate() {
 </template>
 
 <style scoped>
-.screen { position:relative; min-height:100vh; display:flex; align-items:flex-start;
+.screen { position:relative; min-height:100dvh; display:flex; align-items:flex-start;
   padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 .overlay { position:absolute; inset:0; background:linear-gradient(to right, rgba(30,16,6,0.58), transparent 50%); pointer-events:none; }
 .panel { position:relative; z-index:1; display:flex; flex-direction:column; gap:clamp(10px,2.3vh,18px);

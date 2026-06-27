@@ -7,6 +7,7 @@ const connected = ref(false)
 const lastMessage = ref<string | null>(null)
 
 let stompClient: Client | null = null
+const activeSubscriptions = new Map<string, any>()
 
 function getWsUrl(): string {
   // 生产环境: 用 API_BASE_URL 构造完整 WebSocket 地址
@@ -70,6 +71,7 @@ export function useWebSocket(playerId?: string) {
     }
     stompClient = null
     connected.value = false
+    activeSubscriptions.clear()
   }
 
   function subscribe(destination: string, callback: (message: IMessage) => void) {
@@ -77,10 +79,16 @@ export function useWebSocket(playerId?: string) {
       console.warn('[WS] Cannot subscribe: not connected')
       return
     }
-    stompClient.subscribe(destination, (msg) => {
+    const existing = activeSubscriptions.get(destination)
+    if (existing) {
+      try { existing.unsubscribe() } catch (_) { /* ignore */ }
+      activeSubscriptions.delete(destination)
+    }
+    const sub = stompClient.subscribe(destination, (msg) => {
       wsLogger?.logWsRecv(destination, msg.body)
       callback(msg)
     })
+    activeSubscriptions.set(destination, sub)
   }
 
   function send(destination: string, body: string | object = {}) {

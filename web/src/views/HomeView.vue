@@ -11,6 +11,13 @@ const logger = useLogger()
 
 const nickname = ref(userStore.nickname || '')
 const joinRoomId = ref('')
+const toastMsg = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function showToast(msg: string, durationMs = 3000) {
+  toastMsg.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toastMsg.value = '' }, durationMs)
+}
 
 onMounted(() => {
   const bgLayer = document.querySelector('.bg-layer') as HTMLElement
@@ -34,10 +41,10 @@ async function handleJoinRoom() {
   })
   if (!res.ok) {
     logger.logError('join_room_failed', { roomId: joinRoomId.value.trim(), status: res.status })
-    if (res.status === 404) alert('房间不存在')
-    else if (res.status === 403) alert('房间密码错误')
-    else if (res.status === 409) alert('房间已满')
-    else alert('加入失败: ' + res.status)
+    if (res.status === 404) showToast('房间不存在')
+    else if (res.status === 403) showToast('房间密码错误')
+    else if (res.status === 409) showToast('房间已满')
+    else showToast('加入失败: ' + res.status)
     return
   }
   const data = await res.json()
@@ -68,11 +75,17 @@ async function handleJoinRoom() {
         </div>
       </div>
     </div>
+    <!-- Toast -->
+    <Transition name="toast-fade">
+      <div v-if="toastMsg" class="toast-bar" @click="toastMsg = ''">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.screen { position:relative; min-height:100vh; display:flex; align-items:center;
+.screen { position:relative; min-height:100dvh; display:flex; align-items:center;
   padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 .overlay { position:absolute; inset:0; background:linear-gradient(to right, rgba(30,16,6,0.58), transparent 50%); pointer-events:none; }
 .panel { position:relative; z-index:1; display:flex; flex-direction:column; gap:clamp(16px,3.6vh,28px);
@@ -98,4 +111,26 @@ async function handleJoinRoom() {
 .btn-secondary { font-size:clamp(10px,2.7vh,14px); padding:12px 16px;
   background:rgba(140,96,56,0.92); color:var(--color-text-light); border:2px solid var(--color-button-shadow);
   box-shadow:0 2px 0 var(--color-button-shadow); }
+
+/* Toast */
+.toast-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: var(--color-text-light);
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 2vh, 11px);
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 100;
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast-fade-enter-active { transition: opacity 0.2s, transform 0.2s; }
+.toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.toast-fade-enter-from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+.toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 </style>

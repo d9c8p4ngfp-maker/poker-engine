@@ -1,8 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+function randomUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 export const useUserStore = defineStore('user', () => {
-  const playerId = ref(localStorage.getItem('poker_player_id') || crypto.randomUUID())
+  const playerId = ref(localStorage.getItem('poker_player_id') || randomUUID())
   const nickname = ref(localStorage.getItem('poker_nickname') || '')
   const currentRoomId = ref<string | null>(null)
 

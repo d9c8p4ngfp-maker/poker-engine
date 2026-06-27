@@ -21,6 +21,7 @@ public class RoomConfig {
     private BuyInRule buyInRule;
     private boolean recordHistory;
     private boolean bustEndsGame;
+    private boolean autoContinue = false;
 
     private boolean bonus27Enabled = false;
     private int bonus27Amount = 0;

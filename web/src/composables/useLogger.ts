@@ -17,7 +17,7 @@ const MAX_ENTRIES = 5000
 const STORAGE_KEY = 'poker_oplog'
 
 const entries = ref<LogEntry[]>([])
-const sessionId = crypto.randomUUID().slice(0, 8)
+const sessionId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16) })).slice(0, 8)
 
 function fmtTime(ts: number) {
   const d = new Date(ts)

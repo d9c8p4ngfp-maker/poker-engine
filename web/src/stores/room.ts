@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export interface PlayerView {
   playerId: string
@@ -53,6 +53,7 @@ export const useRoomStore = defineStore('room', () => {
   const smallBlind = ref(10)
   const bigBlind = ref(20)
   const maxSeats = ref(8)
+  const minPlayers = ref(2)
   const initialChips = ref(1000)
   const minRaise = ref(20)
   const dealerIndex = ref(0)
@@ -64,6 +65,25 @@ export const useRoomStore = defineStore('room', () => {
   const leaderboard = ref<{ playerId: string; nickname: string; chips: number; borrowCount?: number; borrowed?: number; netChips?: number }[]>([])
   const bustedPlayerIds = ref<string[]>([])
   const messages = ref<{ type: string; text: string; ts: number }[]>([])
+  const readyPlayers = ref<string[]>([])
+  const pendingGameOver = ref<{ winners: any[]; leaderboard: any[]; bustedPlayerIds: string[] } | null>(null)
+
+  const activeCount = computed(() => players.value.filter(p => p.chips > 0).length)
+  const readyCount = computed(() => readyPlayers.value.length)
+  const allReady = computed(() => activeCount.value > 0 && readyCount.value >= activeCount.value)
+  const hasPendingGameOver = computed(() => pendingGameOver.value !== null)
+
+
+  function receiveReadyStatus(data: { readyPlayers: string[]; totalActive: number; allReady: boolean; roomStatus?: string }) {
+    readyPlayers.value = data.readyPlayers || []
+    // Backend is the source of truth for room status. Only transition to WAITING
+    // when the backend explicitly confirms it, preventing accidental overwrites.
+    if (data.roomStatus === 'WAITING') {
+      status.value = 'WAITING'
+    } else if (data.roomStatus) {
+      console.warn('[room] ready_status received with unexpected roomStatus:', data.roomStatus)
+    }
+  }
 
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {
     if (snapshot.roomId != null) roomId.value = snapshot.roomId
@@ -99,13 +119,30 @@ export const useRoomStore = defineStore('room', () => {
     messages.value.push({ type: 'system', text, ts: Date.now() })
   }
 
-  function setGameOver(data: { winners: any[]; leaderboard: any[]; bustedPlayerIds: string[] }) {
+  function setGameOver(data: { winners: any[]; leaderboard: any[]; bustedPlayerIds: string[]; deferred?: boolean }) {
+    if (data.deferred) {
+      // Store pending game over data so HandResult can show "查看最终排名" button.
+      // The 6s auto-broadcast (without deferred flag) will auto-apply if user doesn't click first.
+      pendingGameOver.value = data
+      return
+    }
+    pendingGameOver.value = null
     winners.value = data.winners
     gameOver.value = true
     leaderboard.value = data.leaderboard
     bustedPlayerIds.value = data.bustedPlayerIds
     // Keep current status so the poker table stays visible behind the GameOver overlay.
     // Transition to WAITING happens in handleBackToRoom() when user clicks "返回房间".
+  }
+
+  function showGameOver() {
+    const d = pendingGameOver.value
+    if (!d) return
+    pendingGameOver.value = null
+    winners.value = d.winners
+    gameOver.value = true
+    leaderboard.value = d.leaderboard
+    bustedPlayerIds.value = d.bustedPlayerIds
   }
 
   function reset() {
@@ -123,6 +160,7 @@ export const useRoomStore = defineStore('room', () => {
     smallBlind.value = 10
     bigBlind.value = 20
     maxSeats.value = 8
+    minPlayers.value = 2
     initialChips.value = 1000
     minRaise.value = 20
     dealerIndex.value = 0
@@ -134,13 +172,16 @@ export const useRoomStore = defineStore('room', () => {
     leaderboard.value = []
     bustedPlayerIds.value = []
     messages.value = []
+    readyPlayers.value = []
+    pendingGameOver.value = null
   }
 
   return {
     roomId, roomName, status, players, communityCards, pot, sidePots,
     currentBet, currentPlayerIndex, currentPlayerId, bettingRound, smallBlind, bigBlind,
-    maxSeats, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
+    maxSeats, minPlayers, initialChips, minRaise, dealerIndex, dealerPlayerId, timeLeftSec, myHoleCards, winners,
     gameOver, leaderboard, bustedPlayerIds, messages,
-    updateFromSnapshot, addSystemMessage, setGameOver, reset,
+    readyPlayers, allReady, readyCount, activeCount, pendingGameOver, hasPendingGameOver,
+    updateFromSnapshot, addSystemMessage, setGameOver, showGameOver, reset, receiveReadyStatus,
   }
 })

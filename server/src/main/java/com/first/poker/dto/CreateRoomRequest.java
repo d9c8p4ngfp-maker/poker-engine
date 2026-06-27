@@ -20,4 +20,5 @@ public class CreateRoomRequest {
     private Boolean bonusStraightFlushEnabled;
     private Integer bonusStraightFlushAmount;
     private Boolean bonusRoyalFlushDouble;
+    private Boolean autoContinue;
 }

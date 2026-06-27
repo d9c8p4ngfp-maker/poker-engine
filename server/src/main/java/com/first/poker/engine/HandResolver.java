@@ -9,15 +9,22 @@ public class HandResolver {
         List<Card> allCards = new ArrayList<>();
         allCards.addAll(player.holeCards());
         allCards.addAll(communityCards);
-        return HandEvaluator.evaluate(allCards);
+        return HandEvaluator.evaluate(allCards);  // returns null if < 5 total cards
     }
 
+    /**
+     * Resolve hands for all non-folded players. Returns empty map if community cards
+     * are insufficient (e.g. hand ended before river).
+     */
     public static Map<String, HandEvaluator.HandResult> resolveHands(
             List<GamePlayerState> players, List<Card> communityCards) {
         Map<String, HandEvaluator.HandResult> results = new LinkedHashMap<>();
         for (var p : players) {
             if (!p.folded()) {
-                results.put(p.playerId(), evaluatePlayerHand(p, communityCards));
+                var result = evaluatePlayerHand(p, communityCards);
+                if (result != null) {
+                    results.put(p.playerId(), result);
+                }
             }
         }
         return results;

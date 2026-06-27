@@ -74,8 +74,15 @@ export const useRoomStore = defineStore('room', () => {
   const hasPendingGameOver = computed(() => pendingGameOver.value !== null)
 
 
-  function receiveReadyStatus(data: { readyPlayers: string[]; totalActive: number; allReady: boolean }) {
+  function receiveReadyStatus(data: { readyPlayers: string[]; totalActive: number; allReady: boolean; roomStatus?: string }) {
     readyPlayers.value = data.readyPlayers || []
+    // Backend is the source of truth for room status. Only transition to WAITING
+    // when the backend explicitly confirms it, preventing accidental overwrites.
+    if (data.roomStatus === 'WAITING') {
+      status.value = 'WAITING'
+    } else if (data.roomStatus) {
+      console.warn('[room] ready_status received with unexpected roomStatus:', data.roomStatus)
+    }
   }
 
   function updateFromSnapshot(snapshot: RoomSnapshot, _myPlayerId: string) {

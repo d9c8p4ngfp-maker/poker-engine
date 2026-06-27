@@ -13,7 +13,7 @@ import PwaInstallBanner from './components/ui/PwaInstallBanner.vue'
     <div class="vignette"></div>
     <!-- Content -->
     <div class="content-layer">
-      <RouterView />
+      <RouterView :key="$route.fullPath" />
       <PwaInstallBanner />
     </div>
   </div>

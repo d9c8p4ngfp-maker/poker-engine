@@ -71,6 +71,7 @@ export function useWebSocket(playerId?: string) {
     }
     stompClient = null
     connected.value = false
+    activeSubscriptions.clear()
   }
 
   function subscribe(destination: string, callback: (message: IMessage) => void) {

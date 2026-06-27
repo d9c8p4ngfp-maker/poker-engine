@@ -15,7 +15,6 @@ import PokerTable from '../components/poker/PokerTable.vue'
 import ActionPanel from '../components/poker/ActionPanel.vue'
 import HandResult from '../components/poker/HandResult.vue'
 import GameOver from '../components/poker/GameOver.vue'
-import BustChoice from '../components/poker/BustChoice.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -111,14 +110,17 @@ function subscribeAll() {
       roomStore.roomId = data.roomId
       roomStore.roomName = data.name || ''
       roomStore.status = data.status || 'WAITING'
-      roomStore.players = (data.players || []).map((p: PlayerView) => ({
-        playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
-        chips: p.chips, betInRound: 0, folded: false, allIn: false,
-        holeCards: null, lastAction: null, connected: p.connected,
-        borrowCount: p.borrowCount || 0,
-        owner: p.owner || false,
-        inGame: (p as any).inGame,
-      }))
+      roomStore.players = (data.players || []).map((p: PlayerView) => {
+        const prev = (roomStore.players || []).find(x => x.playerId === p.playerId)
+        return {
+          playerId: p.playerId, nickname: p.nickname, seatIndex: p.seatIndex,
+          chips: p.chips, betInRound: 0, folded: false, allIn: false,
+          holeCards: prev?.holeCards || null, lastAction: null, connected: p.connected,
+          borrowCount: p.borrowCount || 0,
+          owner: p.owner || false,
+          inGame: (p as any).inGame,
+        }
+      })
       roomStore.smallBlind = data.smallBlind || 10
       roomStore.bigBlind = data.bigBlind || 20
       roomStore.maxSeats = data.maxSeats || 8
@@ -132,7 +134,6 @@ function subscribeAll() {
     if (data.leaderboard) {
       console.log('[RoomView] GAME-MSG leaderboard arrived, winners:', data.winners?.length, 'busted:', data.bustedPlayerIds?.length)
       logger.logState('game_over', { leaderboard: data.leaderboard.length, busted: data.bustedPlayerIds?.length })
-      showBustChoice.value = false
       roomStore.setGameOver(data)
       bonusAlert.value = null
       bonusQueue.length = 0
@@ -155,6 +156,8 @@ function subscribeAll() {
       roomStore.gameOver = false
       roomStore.leaderboard = []
       roomStore.bustedPlayerIds = []
+      // New game started — backend cleared ready states (clearReady), sync frontend.
+      roomStore.readyPlayers = []
       roomStore.updateFromSnapshot(data, userStore.playerId)
     } else {
       console.warn('[RoomView] GAME-MSG unknown format:', JSON.stringify(data).slice(0, 200))
@@ -180,7 +183,7 @@ function subscribeAll() {
       return
     }
     if (data.type === 'bust_choice') {
-      showBustChoice.value = true
+      // silently ignored — no popup
       return
     }
     if (data.error) {
@@ -205,9 +208,9 @@ const joinError = ref('')
 const joined = ref(false)
 const joining = ref(false)
 const addingBot = ref(false)
+const showHandResult = ref(true)
 const removingBot = ref<string | null>(null)
 const localCountdown = ref(0)
-const showBustChoice = ref(false)
 const showLeaderboard = ref(false)
 const bonusAlert = ref<{
   bonusType: '27_GAME' | 'STRAIGHT_FLUSH' | 'ROYAL_FLUSH'
@@ -228,6 +231,9 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   logger.logLifecycle('mounted')
   joining.value = true
+
+  // Always reset to wipe any stale state from a previous room visit
+  roomStore.reset()
 
   if (!userStore.nickname) {
     userStore.currentRoomId = localStorage.getItem('poker_room_id') || ''
@@ -261,15 +267,26 @@ onMounted(async () => {
 // Watch for status change to switch background to game table
 watch(() => roomStore.status, (newStatus, oldStatus) => {
   console.log('[RoomView] STATUS CHANGED:', oldStatus, '→', newStatus)
-  if (newStatus === 'WAITING' && oldStatus === 'FINISHED') {
-    console.trace('[RoomView] WHO SET STATUS TO WAITING?')
-  }
   const bgLayer = document.querySelector('.bg-layer') as HTMLElement
   if (!bgLayer) return
+  // Keep poker background during between-hand WAITING (winners still showing on table)
+  if (newStatus === 'WAITING' && roomStore.winners) return
+  // GameOver dismissed: use lobby background even if room status is FINISHED
+  if (newStatus === 'FINISHED' && !roomStore.gameOver) {
+    bgLayer.style.backgroundImage = "url('/image_968223578838775.png')"
+    return
+  }
   if (newStatus === 'PLAYING' || newStatus === 'FINISHED') {
     bgLayer.style.backgroundImage = "url('/image_166619076022278.png')"
   } else {
     bgLayer.style.backgroundImage = "url('/image_968223578838775.png')"
+  }
+})
+
+// When winners appear (new hand ends), always show the result overlay
+watch(() => roomStore.winners, (winners) => {
+  if (winners && winners.length > 0) {
+    showHandResult.value = true
   }
 })
 
@@ -375,7 +392,7 @@ const tablePlayers = computed(() => {
     folded: p.folded,
     allIn: p.allIn,
     seatIndex: p.seatIndex,
-    holeCards: roomStore.status === 'FINISHED'
+    holeCards: (roomStore.status === 'FINISHED' || roomStore.bettingRound === 'SHOWDOWN')
       ? (p.holeCards || null)
       : (p.playerId === userStore.playerId ? roomStore.myHoleCards : null),
     isDealer: p.playerId === (roomStore.dealerPlayerId ?? ''),
@@ -443,7 +460,6 @@ function handleStartGame() {
 
 function handleReady() {
   if (!connected.value) { showToast('网络连接已断开，正在重连...'); return }
-  roomStore.sendReady()
   send(`/app/game/${roomId}/ready`, { playerId: userStore.playerId })
   logger.logAction('ready', { roomId, playerId: userStore.playerId })
 }
@@ -562,7 +578,11 @@ async function handleBackToRoom() {
   roomStore.leaderboard = []
   roomStore.bustedPlayerIds = []
   await refreshRoom()
-  // Don't manually override status — use actual status from refreshRoom
+  // refreshRoom may get FINISHED if the START-GAME WS hasn't been processed yet.
+  // Force WAITING — user explicitly chose to return to lobby.
+  if (roomStore.status !== 'WAITING') {
+    roomStore.status = 'WAITING'
+  }
 }
 
 const borrowing = ref(false)
@@ -587,11 +607,6 @@ async function handleBorrow() {
   } finally {
     borrowing.value = false
   }
-}
-
-async function handleBustSpectate() {
-  logger.logAction('bust_spectate', { roomId })
-  showBustChoice.value = false
 }
 
 const leaderboard = computed(() => {
@@ -636,8 +651,8 @@ onUnmounted(() => {
     </div>
 
     <div v-if="joined" class="room-content">
-      <!-- PLAYING / FINISHED: Full-screen table overlay -->
-      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED'" class="room-game-view" data-test="game-view">
+      <!-- PLAYING / FINISHED / between-hands WAITING: Full-screen table overlay -->
+      <div v-if="roomStore.status === 'PLAYING' || roomStore.status === 'FINISHED' || (roomStore.status === 'WAITING' && roomStore.winners)" class="room-game-view" data-test="game-view">
         <!-- Top info bar -->
         <div class="game-top-bar">
           <div class="game-room-info">
@@ -695,26 +710,26 @@ onUnmounted(() => {
         </div>
 
         <HandResult
-          v-if="roomStore.winners && !roomStore.gameOver"
+          v-if="roomStore.winners && !roomStore.gameOver && showHandResult"
           :winners="roomStore.winners"
           :is-owner="isOwner"
-          :players="roomStore.players.filter(p => p.chips > 0).map(p => ({ playerId: p.playerId, nickname: p.nickname, chips: p.chips }))"
+          :players="roomStore.players.map(p => ({ playerId: p.playerId, nickname: p.nickname, chips: p.chips, holeCards: p.holeCards, folded: p.folded }))"
           :ready-players="roomStore.readyPlayers"
           :total-active="roomStore.activeCount"
           :all-ready="roomStore.allReady"
           :my-player-id="userStore.playerId"
           :min-players="roomStore.minPlayers"
           :has-pending-game-over="roomStore.hasPendingGameOver"
+          :room-status="roomStore.status"
+          :max-seats="roomStore.maxSeats"
+          :player-count="roomStore.players.length"
+          :my-chips="myPlayer?.chips || 0"
           @next-hand="handleNextHand"
           @ready="handleReady"
           @show-game-over="roomStore.showGameOver()"
-        />
-
-        <BustChoice
-          v-if="showBustChoice && !roomStore.gameOver"
-          :player-id="userStore.playerId"
-          :nickname="userStore.nickname"
-          @spectate="handleBustSpectate"
+          @add-bot="handleAddBot"
+          @borrow="handleBorrow"
+          @dismiss-result="showHandResult = false"
         />
       </div>
 
@@ -762,10 +777,10 @@ onUnmounted(() => {
                   (净: {{ player.chips - (player.borrowCount || 0) * roomStore.initialChips }})
                 </span>
                 <button
-                  v-if="player.playerId.startsWith('bot-') && roomStore.status === 'WAITING'"
+                  v-if="player.playerId.startsWith('bot-')"
                   class="room-remove-bot-btn"
                   @click="handleRemoveBot(player.playerId)"
-                  :disabled="removingBot === player.playerId"
+                  :disabled="removingBot === player.playerId || roomStore.status === 'PLAYING'"
                 >
                   {{ removingBot === player.playerId ? '...' : '✕' }}
                 </button>

@@ -71,9 +71,12 @@ public class GameSessionService {
                 throw new IllegalArgumentException("Only room owner can start the game");
             }
 
-            // Must not already be playing
+            // Must not already be playing.
+            // If auto-continue already started the game, treat manual start as success
+            // (owner's intent was fulfilled) rather than throwing an error.
             if (sessions.containsKey(roomId)) {
-                throw new IllegalStateException("Game already in progress for room " + roomId);
+                log.info("[START-GAME] {} already in progress — treating as idempotent success", roomId);
+                return null;
             }
 
             // Convert to GamePlayerState — only ACTIVE players with chips participate.

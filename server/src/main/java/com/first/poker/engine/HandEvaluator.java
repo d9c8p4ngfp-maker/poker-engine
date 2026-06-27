@@ -6,10 +6,14 @@ public class HandEvaluator {
 
     public record HandResult(int rank, String name, List<Card> bestFive) {}
 
-    public static HandResult evaluate(List<Card> sevenCards) {
-        if (sevenCards.size() != 7) throw new IllegalArgumentException("Need exactly 7 cards");
+    /**
+     * Evaluate the best 5-card hand from a set of cards (typically 2 hole + up to 5 community).
+     * Returns null if fewer than 5 cards are available (e.g. early timeout before all streets dealt).
+     */
+    public static HandResult evaluate(List<Card> cards) {
+        if (cards == null || cards.size() < 5) return null;
         HandResult best = null;
-        List<List<Card>> combos = combinations(sevenCards, 5);
+        List<List<Card>> combos = combinations(cards, 5);
         for (List<Card> five : combos) {
             HandResult hr = evaluateFive(five);
             if (best == null || hr.rank() > best.rank()) best = hr;

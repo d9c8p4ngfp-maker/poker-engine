@@ -148,12 +148,14 @@ public class GameBroadcastHelper {
                     var currentReady = gameSession.getReadyPlayers(roomId);
                     var readyPayload = new HashMap<String, Object>();
                     readyPayload.put("type", "ready_status");
+                    readyPayload.put("roomStatus", r.getStatus().name());
                     readyPayload.put("readyPlayers", currentReady.stream().toList());
                     readyPayload.put("totalActive", activePlayers.size());
                     readyPayload.put("allReady", gameSession.allReady(roomId, activePlayers));
                     broadcast.sendToRoom(roomId, readyPayload);
 
-                    // 15s timeout: auto-ready all non-ready players
+                    // 15s timeout: auto-ready bots only (humans must click "准备" themselves).
+                    // If autoContinue is on, auto-ready everyone so the next hand starts automatically.
                     if (activePlayers.size() >= r.getConfig().getMinPlayers()) {
                         var future = endHandExecutor.schedule(() -> {
                         readyTimeouts.remove(roomId);
@@ -167,17 +169,24 @@ public class GameBroadcastHelper {
                                 .map(p -> p.getPlayerId())
                                 .toList();
 
-                            for (String pid : activeIds) {
+                            // Only auto-ready bots. Humans control their own ready state.
+                            var toAutoReady = activeIds.stream()
+                                .filter(id -> id != null && id.startsWith("bot-"))
+                                .toList();
+                            for (String pid : toAutoReady) {
                                 gameSession.markReady(roomId, pid);
                             }
 
+                            var readySet = gameSession.getReadyPlayers(roomId);
+                            boolean allReadyNow = gameSession.allReady(roomId, activeIds);
                             var autoReadyPayload = new HashMap<String, Object>();
                             autoReadyPayload.put("type", "ready_status");
-                            autoReadyPayload.put("readyPlayers", activeIds);
+                            autoReadyPayload.put("roomStatus", room2.getStatus().name());
+                            autoReadyPayload.put("readyPlayers", readySet.stream().toList());
                             autoReadyPayload.put("totalActive", activeIds.size());
-                            autoReadyPayload.put("allReady", true);
+                            autoReadyPayload.put("allReady", allReadyNow);
                             broadcast.sendToRoom(roomId, autoReadyPayload);
-                            log.info("[READY-TIMEOUT] {} auto-ready all {} players", roomId, activeIds.size());
+                            log.info("[READY-TIMEOUT] {} auto-ready {} bots, allReady={}", roomId, toAutoReady.size(), allReadyNow);
 
                             tryAutoContinue(roomId);
                         });
@@ -203,6 +212,10 @@ public class GameBroadcastHelper {
     public void checkAndApplyBonuses(String roomId, Room room, GameState resolvedState, GameEngine.ActionResult result) {
         var config = room.getConfig();
         if (!config.isBonus27Enabled() && !config.isBonusStraightFlushEnabled()) return;
+
+        // Bonuses only apply at showdown with full community cards.
+        // When hand ends early (e.g. everyone folds after flop), skip.
+        if (resolvedState.communityCards() == null || resolvedState.communityCards().size() < 5) return;
 
         // Collect participant chips from the room (pre-transfer)
         Map<String, Integer> participantChips = new LinkedHashMap<>();
@@ -540,6 +553,15 @@ public class GameBroadcastHelper {
                         .map(p -> p.getPlayerId())
                         .findFirst().orElse(null);
                     if (ownerId == null) return;
+
+                    // Re-count players with chips — may have changed since allReady was checked
+                    var playersWithChips = r.getPlayers().stream()
+                        .filter(p -> p.getStatus() == PlayerStatus.ACTIVE && p.getChips() > 0)
+                        .count();
+                    if (playersWithChips < 2) {
+                        log.info("[AUTO-CONTINUE] {} only {} players with chips, skipping auto-start", roomId, playersWithChips);
+                        return;
+                    }
 
                     var state = gameSession.startGame(r, ownerId);
                     autoPlayBots(roomId);

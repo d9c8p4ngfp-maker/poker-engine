@@ -118,7 +118,6 @@ public class RoomService {
     public boolean removeBot(String roomId, String botPlayerId) {
         Room room = registry.findById(roomId);
         if (room == null) return false;
-        if (room.getStatus() != com.first.poker.model.enums.RoomStatus.WAITING) return false;
         if (!botPlayerId.startsWith("bot-")) return false;
         return room.removePlayer(botPlayerId);
     }

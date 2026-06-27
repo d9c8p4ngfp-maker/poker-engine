@@ -71,6 +71,7 @@ public class GameMessageController {
             }
 
             var state = gameSession.startGame(room, req.getPlayerId());
+            if (state == null) return; // auto-continue already started the game
 
             // Register ALL room players for disconnect tracking
             for (var rp : room.getPlayers()) {
@@ -135,6 +136,7 @@ public class GameMessageController {
         var readySet = gameSession.getReadyPlayers(roomId);
         var statusPayload = new java.util.HashMap<String, Object>();
         statusPayload.put("type", "ready_status");
+        statusPayload.put("roomStatus", room.getStatus().name());
         statusPayload.put("readyPlayers", readySet.stream().toList());
         statusPayload.put("totalActive", activePlayers.size());
         statusPayload.put("allReady", gameSession.allReady(roomId, activePlayers));
@@ -306,6 +308,7 @@ public class GameMessageController {
                 if (!activePlayers.isEmpty()) {
                     var readyPayload = new java.util.HashMap<String, Object>();
                     readyPayload.put("type", "ready_status");
+                    readyPayload.put("roomStatus", room.getStatus().name());
                     readyPayload.put("readyPlayers", gameSession.getReadyPlayers(roomId).stream().toList());
                     readyPayload.put("totalActive", activePlayers.size());
                     readyPayload.put("allReady", gameSession.allReady(roomId, activePlayers));
